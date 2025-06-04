@@ -93,3 +93,11 @@ jspm_packages/
 # TypeScript cache
 *.tsbuildinfo
 chrome-debug-profile/*
+__pycache__/*
+# MCP Server files (uncomment if you don't want to track them)
+# mcp_server.py
+# requirements.txt
+# setup_mcp.sh
+# start_mcp.sh
+# MCP_README.md
+# mcp_server.log
