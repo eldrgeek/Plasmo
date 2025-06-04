@@ -1,0 +1,30 @@
+{
+  "name": "my-plasmo-extension",
+  "displayName": "My Plasmo Extension",
+  "version": "0.0.1",
+  "description": "A basic Chrome extension built with Plasmo",
+  "author": "Your Name",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
+  },
+  "dependencies": {
+    "plasmo": "0.84.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.0.246",
+    "@types/node": "20.5.9",
+    "@types/react": "18.2.21",
+    "@types/react-dom": "18.2.7",
+    "typescript": "5.2.2"
+  },
+  "manifest": {
+    "permissions": [
+      "activeTab",
+      "storage"
+    ]
+  }
+}
