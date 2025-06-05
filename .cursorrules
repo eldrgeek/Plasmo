@@ -1,0 +1,56 @@
+# Cursor Rules for Plasmo Extension Development with MCP Server
+
+## Project Context
+This is a Plasmo browser extension project with an integrated MCP (Model Context Protocol) server for Chrome Debug Protocol integration. The MCP server enables real-time debugging and monitoring of the extension through AI assistance.
+
+## Key Technologies
+- **Plasmo**: Browser extension framework
+- **TypeScript/React**: Extension UI and logic
+- **Python FastMCP**: MCP server for Chrome debugging
+- **Chrome Debug Protocol**: Browser automation and debugging
+- **WebSocket**: Real-time communication with browser
+
+## Development Guidelines
+
+### MCP Server Development
+- Always ensure return values from MCP tools are JSON-serializable (no complex objects)
+- Use `make_json_safe()` helper for converting objects to basic types
+- Handle Chrome Debug Protocol WebSocket connections carefully
+- Test Chrome flag compatibility when adding new debugging features
+- Remember that extension service worker IDs change on Chrome restart
+
+### Chrome Debugging Setup
+- Use `./launch-chrome-debug.sh` script for proper Chrome configuration
+- Required flags: `--remote-debugging-port=9222 --remote-allow-origins=*`
+- Extension debugging requires special WebSocket origin permissions
+- Monitor console logs through MCP server tools, not direct WebSocket connections
+
+### Code Organization
+- Keep MCP server tools focused and single-purpose
+- Document Chrome Debug Protocol interactions thoroughly
+- Maintain separation between extension code and debugging infrastructure
+- Use proper error handling for WebSocket connections
+
+### File Management
+- Never commit `__pycache__/`, `mcp_server.log`, or Chrome profile contents
+- Keep `chrome-debug-profile/` directory structure but ignore contents
+- Document any new MCP tools in relevant README files
+
+### Extension Development
+- Test extension functionality both standalone and through MCP debugging
+- Verify auto-reload functionality works with file changes
+- Use MCP server console monitoring for debugging extension logic
+- Maintain compatibility between extension and debugging infrastructure
+
+### Best Practices
+- Test MCP server tools thoroughly before committing
+- Handle serialization edge cases proactively
+- Document Chrome version compatibility for debugging features
+- Keep debugging tools separate from production extension code
+- Use parallel tool calls when gathering multiple pieces of information
+
+## Common Issues & Solutions
+- **Serialization errors**: Convert objects to dict/list/string before returning
+- **WebSocket 403 errors**: Ensure `--remote-allow-origins=*` flag is set
+- **Extension not found**: Check service worker is running and ID is current
+- **MCP tools not available**: Restart Cursor after server changes 
