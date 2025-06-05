@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cursor-dev-assistant": {
+      "command": "python",
+      "args": ["/Users/MikeWolf/Projects/Plasmo/mcp_server.py", "--stdio"],
+      "env": {
+        "PYTHONPATH": "/Users/MikeWolf/Projects/Plasmo"
+      }
+    }
+  }
+} 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🚀 Starting FastMCP Server for Cursor with Auto-Reload..."
-echo "=========================================================="
+echo "🚀 Starting FastMCP Server for Cursor (HTTP Mode)..."
+echo "====================================================="
 
 # Check if the server file exists
 if [ ! -f "mcp_server.py" ]; then
@@ -23,8 +23,12 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "✅ Dependencies verified"
-echo "🌐 Starting server on http://127.0.0.1:8000"
+echo "🌐 Starting server in HTTP mode on http://127.0.0.1:8000/mcp"
 echo "🔄 Auto-reload enabled - watching mcp_server.py for changes"
+echo ""
+echo "📝 Transport Modes Available:"
+echo "   🖥️  HTTP (this script):   ./start_mcp.sh"
+echo "   📟  STDIO (Claude Desktop): ./start_mcp_stdio.sh"
 echo ""
 echo "📝 Make sure to configure Cursor with the MCP server settings"
 echo "   (see mcp_server.py for configuration details)"

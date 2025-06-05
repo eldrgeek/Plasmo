@@ -1,45 +1,55 @@
 # FastMCP Server for Cursor Integration
 
-This directory contains a FastMCP (Model Context Protocol) server that provides AI-powered development tools for your Cursor IDE. The server integrates seamlessly with your Plasmo browser extension project and now includes **Chrome Debug Protocol support** for live debugging and console log monitoring.
+This directory contains a FastMCP (Model Context Protocol) server that provides AI-powered development tools for your Cursor IDE and other MCP clients. The server integrates seamlessly with your Plasmo browser extension project and now includes **Chrome Debug Protocol support** for live debugging and console log monitoring.
 
 ## 🚀 Quick Start
 
-### Option 1: Automated Setup (with Chrome Debug Protocol)
+### Option 1: HTTP Mode (Default - for Cursor IDE)
 ```bash
-./setup_chrome_debug.sh  # New! Sets up Chrome debugging
+# Automated setup
 ./setup_mcp.sh
-```
 
-### Option 2: Manual Setup
-```bash
-# Install dependencies (including Chrome debug support)
-pip3 install -r requirements.txt
-
-# Run the server
+# Start HTTP server
 python3 mcp_server.py
+# or
+./start_mcp.sh
 ```
 
-## 🌐 NEW: Chrome Debug Protocol Integration
+### Option 2: STDIO Mode (for Claude Desktop and local tools)
+```bash
+# Start STDIO server
+python3 mcp_server.py --stdio
+# or
+./start_mcp_stdio.sh
+```
 
-The MCP server now includes comprehensive Chrome Debug Protocol support for:
-- **Live console log monitoring** from Chrome tabs
-- **JavaScript execution** in browser context
-- **Breakpoint setting** for debugging
-- **Real-time debugging** of web applications
+### Option 3: Chrome Debug Protocol Setup
+```bash
+./setup_chrome_debug.sh  # Sets up Chrome debugging
+./setup_mcp.sh           # Sets up MCP server
+```
 
-### Quick Chrome Debug Start:
-1. **Launch Chrome with debugging**: `./launch-chrome-debug.sh`
-2. **Start MCP server**: `python3 mcp_server.py`
-3. **Ask AI**: "Connect to Chrome and start monitoring console logs"
+## 🌐 NEW: Dual Transport Support
 
-📖 **For detailed Chrome debugging documentation, see: [CHROME_DEBUG_README.md](CHROME_DEBUG_README.md)**
+The MCP server now supports both HTTP and STDIO transports:
+
+### 🖥️ HTTP Mode (Default)
+- **Best for**: Cursor IDE, web-based deployments, microservices
+- **URL**: `http://127.0.0.1:8000/mcp`
+- **Usage**: `python3 mcp_server.py` or `python3 mcp_server.py --http`
+
+### 📟 STDIO Mode
+- **Best for**: Claude Desktop, local tools, command-line integration
+- **Communication**: Standard input/output
+- **Usage**: `python3 mcp_server.py --stdio`
 
 ## 📋 Prerequisites
 
 - Python 3.7 or higher
 - pip3 (Python package installer)
-- Cursor IDE
-- **Google Chrome** (for debug protocol features)
+- **For HTTP mode**: Cursor IDE or MCP client with HTTP support
+- **For STDIO mode**: Claude Desktop or MCP client with subprocess management
+- **For Chrome debugging**: Google Chrome
 
 ## 🛠 Installation Steps
 
@@ -48,24 +58,21 @@ The MCP server now includes comprehensive Chrome Debug Protocol support for:
    pip3 install -r requirements.txt
    ```
 
-2. **Start the MCP server**:
+2. **Choose your transport mode**:
+
+   **For HTTP Mode (Cursor IDE)**:
    ```bash
    python3 mcp_server.py
    ```
    
-   You should see output like:
-   ```
-   🚀 FastMCP Server Starting
-   ========================
-   Server: http://127.0.0.1:8000
-   Transport: HTTP
-   Tools available: 19
-   
-   🔧 Chrome Debug Protocol Support Added!
-   Chrome Debug Port: 9222
+   **For STDIO Mode (Claude Desktop)**:
+   ```bash
+   python3 mcp_server.py --stdio
    ```
 
-3. **Configure Cursor IDE**:
+3. **Configure your client**:
+
+   **Cursor IDE Configuration**:
    - Open Cursor settings (`Cmd/Ctrl + ,`)
    - Search for "mcp" or "Model Context Protocol"
    - Add this configuration to your `settings.json`:
@@ -74,22 +81,37 @@ The MCP server now includes comprehensive Chrome Debug Protocol support for:
    {
      "mcpServers": {
        "cursor-dev-assistant": {
-         "url": "http://127.0.0.1:8000"
+         "url": "http://127.0.0.1:8000/mcp"
        }
      }
    }
    ```
 
-4. **Restart Cursor IDE**
+   **Claude Desktop Configuration**:
+   - Open Claude Desktop settings
+   - Add this configuration:
+
+   ```json
+   {
+     "mcpServers": {
+       "cursor-dev-assistant": {
+         "command": "python",
+         "args": ["/path/to/your/mcp_server.py", "--stdio"]
+       }
+     }
+   }
+   ```
+
+4. **Restart your client** (Cursor IDE or Claude Desktop)
 
 5. **Test the integration**:
-   - Open a new chat in Cursor
+   - Open a new chat
    - Ask: "What tools are available from the MCP server?"
    - Try: "Launch Chrome with debugging enabled"
 
 ## 🔧 Available Tools
 
-The MCP server provides the following tools:
+The MCP server provides the following tools in both HTTP and STDIO modes:
 
 ### 📁 File Operations
 - **`read_file`** - Read file contents
@@ -125,133 +147,81 @@ The MCP server provides the following tools:
 
 ## 💡 Example Usage
 
-Once set up, you can use natural language prompts in Cursor like:
-
-### For Chrome debugging *(NEW!)*:
-- "Launch Chrome with debugging enabled"
-- "Connect to Chrome and show me available tabs"
-- "Start monitoring console logs for the React app tab"
-- "Get the latest console errors from Chrome"
-- "Execute JavaScript: document.title in the first tab"
-- "Set a breakpoint at line 42 in main.js"
-- "Clear all console logs and start fresh monitoring"
-
-### For your Plasmo project:
-- "Show me the structure of my Plasmo extension project"
-- "Read the manifest permissions from package.json"
-- "Analyze the code in popup.tsx"
-- "Search for 'chrome.storage' usage in all TypeScript files"
-- "What's the git status of this repository?"
-
-### General development:
-- "List all TypeScript files in the contents directory"
-- "Show me the project structure up to 2 levels deep"
-- "Search for TODO comments in JavaScript files"
-- "Analyze the background.ts file for code metrics"
-
-## 🔒 Security Features
-
-- **Safe git commands only**: Only read-only git operations are allowed
-- **File system protection**: Write operations create directories safely
-- **Command timeout**: Git commands timeout after 30 seconds
-- **Chrome debug isolation**: Uses separate Chrome profile for debugging
-- **Error handling**: Graceful error handling for all operations
-
-## 🐛 Troubleshooting
-
-### Server won't start
-- Check if port 8000 is available: `lsof -i :8000`
-- Try a different port by modifying `SERVER_PORT` in `mcp_server.py`
-
-### Chrome debugging issues *(NEW!)*
-- Ensure Chrome is installed and accessible
-- Check if port 9222 is available: `lsof -i :9222`
-- Try launching Chrome manually: `./launch-chrome-debug.sh`
-- See detailed troubleshooting in [CHROME_DEBUG_README.md](CHROME_DEBUG_README.md)
-
-### Cursor doesn't recognize the server
-- Ensure the server is running before starting Cursor
-- Check the server URL in Cursor settings matches the running server
-- Restart Cursor after adding the configuration
-
-### Tools not working
-- Check server logs for errors
-- Verify file paths are correct relative to the project root
-- Ensure proper permissions for file operations
-
-## 📁 Project Structure
-
-```
-your-plasmo-project/
-├── mcp_server.py              # Main MCP server
-├── requirements.txt           # Python dependencies
-├── setup_mcp.sh              # Automated setup script
-├── start_mcp.sh              # Start server with auto-reload (UPDATED!)
-├── setup_chrome_debug.sh     # Chrome debug setup (NEW!)
-├── launch-chrome-debug.sh    # Chrome launcher (NEW!)
-├── test_chrome_debug.py      # Chrome debug test script (NEW!)
-├── demo_auto_reload.sh       # Auto-reload demonstration (NEW!)
-├── MCP_README.md             # This file
-├── CHROME_DEBUG_README.md    # Chrome debugging guide (NEW!)
-├── AUTO_RELOAD_README.md     # Auto-reload feature guide (NEW!)
-├── chrome-debug-profile/     # Chrome debug profile directory (NEW!)
-├── package.json              # Your Plasmo project config
-├── popup.tsx                 # Your Plasmo popup
-├── background.ts             # Your Plasmo background script
-└── ...                       # Other Plasmo files
-```
-
-## 🔄 Server Management
-
-### Start the server
+### HTTP Mode with Cursor IDE
 ```bash
+# Start HTTP server
 python3 mcp_server.py
+
+# Use in Cursor IDE
+# Ask: "Read the package.json file"
+# Ask: "Launch Chrome with debugging and monitor console logs"
 ```
 
-### Start with Auto-Reload *(NEW!)*
+### STDIO Mode with Claude Desktop
 ```bash
+# Start STDIO server
+python3 mcp_server.py --stdio
+
+# Use in Claude Desktop
+# Ask: "Show me the project structure"
+# Ask: "Connect to Chrome and get available tabs"
+```
+
+### Command Line Options
+```bash
+python3 mcp_server.py                    # HTTP mode (default)
+python3 mcp_server.py --stdio            # STDIO mode
+python3 mcp_server.py --http             # Explicitly HTTP mode
+python3 mcp_server.py --port 9000        # Custom port (HTTP mode)
+python3 mcp_server.py --host 0.0.0.0     # Bind to all interfaces (HTTP mode)
+python3 mcp_server.py --path /custom     # Custom HTTP path
+```
+
+## 🔧 Server Management
+
+### Start Server
+```bash
+# HTTP mode
 ./start_mcp.sh
-```
-**Features:**
-- 🔄 **Automatic restart** when `mcp_server.py` is modified
-- 👁️ **File watching** using `fswatch` (macOS/Linux) or polling fallback
-- 🛑 **Graceful shutdown** with Ctrl+C
-- 📊 **Timestamps and status** for all operations
+python3 mcp_server.py
 
-**For optimal performance, install fswatch:**
+# STDIO mode
+./start_mcp_stdio.sh
+python3 mcp_server.py --stdio
+```
+
+### Stop Server
+**HTTP mode**: Press `Ctrl+C` in the terminal where the server is running
+
+**STDIO mode**: The server runs per-session and is managed by the client
+
+### Check if Running (HTTP mode only)
 ```bash
-brew install fswatch  # macOS
-# or
-sudo apt-get install fswatch  # Ubuntu/Debian
+curl http://127.0.0.1:8000/mcp
 ```
 
-### Stop the server
-Press `Ctrl+C` in the terminal where the server is running
-
-### Run in background
+### View Logs
+Server logs appear in the terminal. For HTTP mode background operation:
 ```bash
 nohup python3 mcp_server.py > mcp_server.log 2>&1 &
 ```
 
-### Check if server is running
-```bash
-curl http://127.0.0.1:8000/health
-```
+## 🛠 Customization
 
-### Test Chrome debugging *(NEW!)*
-```bash
-python3 test_chrome_debug.py
-```
+The server is designed to be easily customizable:
 
-## 📝 Customization
+1. **Add new tools**: Edit `mcp_server.py` and add functions with `@mcp.tool()` decorator
+2. **Change HTTP settings**: Use command-line arguments `--host`, `--port`, `--path`
+3. **Change Chrome debug port**: Modify `CHROME_DEBUG_PORT` variable in `mcp_server.py`
+4. **Add authentication**: Implement auth middleware (see FastMCP docs)
 
-You can customize the server by modifying `mcp_server.py`:
+## 📚 Documentation
 
-- **Change port**: Modify `SERVER_PORT` variable
-- **Chrome debug port**: Modify `CHROME_DEBUG_PORT` variable
-- **Add new tools**: Create new functions with `@mcp.tool()` decorator
-- **Modify existing tools**: Edit the existing tool functions
-- **Add authentication**: Implement authentication middleware
+- See this README for comprehensive setup instructions
+- [FastMCP Documentation](https://gofastmcp.com/)
+- [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
+- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
+- [Plasmo Framework Documentation](https://docs.plasmo.com/)
 
 ## 🤝 Integration with Plasmo
 
@@ -264,20 +234,44 @@ This MCP server is specifically useful for Plasmo browser extension development:
 - **Live debugging**: Debug your extension's JavaScript in real-time *(NEW!)*
 - **Console monitoring**: Monitor extension console output *(NEW!)*
 
-## 📚 Resources
+## 🔒 Security Notes
 
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
-- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
-- [Cursor IDE Documentation](https://docs.cursor.sh/)
-- [Plasmo Framework Documentation](https://docs.plasmo.com/)
+- Only read-only git commands are allowed
+- File operations are limited to the project directory
+- Database operations use safe SQLite queries
+- All operations include proper error handling
+- Chrome debugging requires explicit user consent
 
-## 🆘 Support
+## 🆘 Troubleshooting
 
-If you encounter issues:
+### Server won't start
+- **HTTP mode**: Check if port 8000 is available: `lsof -i :8000`
+- **STDIO mode**: Check Python path and dependencies
+- Verify Python dependencies: `pip3 list | grep fastmcp`
 
-1. Check the server logs for error messages
-2. Verify Python and pip versions
-3. Ensure all dependencies are installed correctly
-4. Check Cursor settings configuration
-5. For Chrome debugging issues, see [CHROME_DEBUG_README.md](CHROME_DEBUG_README.md) 
+### Client doesn't see the server
+- **HTTP mode**: Ensure server is running before starting client
+- **STDIO mode**: Check command path in client configuration
+- **HTTP mode**: Check URL in client settings matches `http://127.0.0.1:8000/mcp`
+- Restart client after configuration
+
+### Tools not working
+- Check server logs for errors
+- Verify file paths are relative to project root
+- Ensure proper file permissions
+- For Chrome debugging issues, see Chrome setup instructions
+
+### Chrome debugging issues
+- Ensure Chrome is launched with `--remote-debugging-port=9222`
+- Check WebSocket permissions with `--remote-allow-origins=*`
+- Verify Chrome Debug Protocol port is not blocked by firewall
+
+## 🎉 You're All Set!
+
+Your FastMCP server is ready to supercharge your development with AI-powered tools in both Cursor IDE and Claude Desktop. The server provides comprehensive file operations, code analysis, project structure insights, safe git operations, and cutting-edge Chrome Debug Protocol integration to help you build better browser extensions faster.
+
+**Choose your mode**:
+- 🖥️ **HTTP mode** for Cursor IDE and web-based workflows
+- 📟 **STDIO mode** for Claude Desktop and local tool integration
+
+Happy coding! 🚀 

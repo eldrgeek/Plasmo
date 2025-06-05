@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+        "cursor-dev-assistant": {
+            "url": "http://127.0.0.1:8000/mcp"
+        }
+    },
+    "plasmo-cdp-server": {
+        "transport": {
+            "type": "sse",
+            "url": "http://localhost:8000/mcp"
+        }
+    }
+}

@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-FastMCP HTTP Server for Cursor Integration
+FastMCP Server for Cursor Integration
 ==========================================
 
-This is a Model Context Protocol (MCP) server using fastMCP with HTTP transport.
-It provides tools that can be used by AI assistants in Cursor IDE.
+This is a Model Context Protocol (MCP) server using fastMCP with multiple transport support.
+It provides tools that can be used by AI assistants in Cursor IDE and other MCP clients.
 
 Setup Instructions:
 1. Install dependencies: pip install fastmcp uvicorn websockets aiohttp pychrome
-2. Run server: python mcp_server.py
-3. Add to Cursor settings (see bottom of file for config)
-4. Restart Cursor
+2. Run server in HTTP mode: python mcp_server.py
+3. Run server in stdio mode: python mcp_server.py --stdio
+4. Add to Cursor settings (see bottom of file for config)
+5. Restart Cursor
 
 Features:
 - File operations (read, write, list)
@@ -19,12 +20,18 @@ Features:
 - Git operations
 - Database utilities
 - Chrome Debug Protocol integration for console logs and debugging
+
+Transport Modes:
+- HTTP (default): For web-based deployments and Cursor integration
+- STDIO: For local tools and command-line integration (e.g., Claude Desktop)
 """
 
 import os
 import json
 import subprocess
 import sqlite3
+import argparse
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 import asyncio
@@ -929,6 +936,59 @@ def launch_chrome_debug() -> Dict[str, Any]:
         return {"error": str(e)}
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="FastMCP Server with Chrome Debug Protocol Support",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Transport Modes:
+  HTTP (default)    Run as HTTP server for web-based deployments and Cursor IDE
+  STDIO             Run as STDIO server for local tools and Claude Desktop
+
+Examples:
+  python mcp_server.py                    # Run in HTTP mode (default)
+  python mcp_server.py --stdio            # Run in STDIO mode
+  python mcp_server.py --http             # Explicitly run in HTTP mode
+  python mcp_server.py --port 9000        # Run in HTTP mode on port 9000
+  python mcp_server.py --host 0.0.0.0     # Run in HTTP mode on all interfaces
+        """
+    )
+    
+    transport_group = parser.add_mutually_exclusive_group()
+    transport_group.add_argument(
+        '--stdio', 
+        action='store_true',
+        help='Run server in STDIO mode for local tools and command-line integration'
+    )
+    transport_group.add_argument(
+        '--http', 
+        action='store_true',
+        help='Run server in HTTP mode (default)'
+    )
+    
+    # HTTP-specific options
+    parser.add_argument(
+        '--host',
+        default=SERVER_HOST,
+        help=f'Host to bind HTTP server to (default: {SERVER_HOST})'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=SERVER_PORT,
+        help=f'Port to bind HTTP server to (default: {SERVER_PORT})'
+    )
+    parser.add_argument(
+        '--path',
+        default='/mcp',
+        help='Path for HTTP server endpoint (default: /mcp)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Determine transport mode
+    use_stdio = args.stdio
+    
     # Get tools count for display
     tools_count = 0
     tools_list = []
@@ -948,10 +1008,42 @@ if __name__ == "__main__":
             "set_breakpoint", "get_chrome_debug_info", "launch_chrome_debug"
         ]
     
-    print(f"""
-🚀 FastMCP Server Starting
-========================
-Server: http://{SERVER_HOST}:{SERVER_PORT}
+    if use_stdio:
+        print(f"""
+🚀 FastMCP Server Starting (STDIO Mode)
+========================================
+Transport: STDIO
+Tools available: {tools_count}
+
+🔧 Chrome Debug Protocol Support Added!
+Chrome Debug Port: {CHROME_DEBUG_PORT}
+Use launch_chrome_debug() to start Chrome with debugging enabled
+
+📝 STDIO Mode Configuration:
+This server is running in STDIO mode for local tools and command-line integration.
+Perfect for use with Claude Desktop and other MCP clients that manage server processes.
+
+To use with Claude Desktop:
+1. Add this to your Claude Desktop configuration:
+{{
+  "mcpServers": {{
+    "cursor-dev-assistant": {{
+      "command": "python",
+      "args": ["{os.path.abspath(__file__)}", "--stdio"]
+    }}
+  }}
+}}
+
+2. Restart Claude Desktop
+3. The tools will be available in conversations
+
+Available Tools:
+""", file=sys.stderr)
+    else:
+        print(f"""
+🚀 FastMCP Server Starting (HTTP Mode)
+======================================
+Server: http://{args.host}:{args.port}{args.path}
 Transport: HTTP
 Tools available: {tools_count}
 
@@ -967,7 +1059,7 @@ To integrate with Cursor:
 {{
   "mcpServers": {{
     "cursor-dev-assistant": {{
-      "url": "http://{SERVER_HOST}:{SERVER_PORT}"
+      "url": "http://{args.host}:{args.port}{args.path}"
     }}
   }}
 }}
@@ -987,50 +1079,61 @@ Available Tools:
                    "execute_javascript", "set_breakpoint", "get_chrome_debug_info"]
     system_tools = ["get_system_info", "server_info"]
     
-    print("📁 File Operations:")
+    output_file = sys.stderr if use_stdio else sys.stdout
+    
+    print("📁 File Operations:", file=output_file)
     for tool in file_tools:
         if tool in tools_list:
-            print(f"  • {tool}")
+            print(f"  • {tool}", file=output_file)
     
-    print("\n💻 Code Analysis:")
+    print("\n💻 Code Analysis:", file=output_file)
     for tool in code_tools:
         if tool in tools_list:
-            print(f"  • {tool}")
+            print(f"  • {tool}", file=output_file)
     
-    print("\n🗄️ Database Tools:")
+    print("\n🗄️ Database Tools:", file=output_file)
     for tool in db_tools:
         if tool in tools_list:
-            print(f"  • {tool}")
+            print(f"  • {tool}", file=output_file)
     
-    print("\n🌐 Chrome Debug Protocol:")
+    print("\n🌐 Chrome Debug Protocol:", file=output_file)
     for tool in chrome_tools:
         if tool in tools_list:
-            print(f"  • {tool}")
+            print(f"  • {tool}", file=output_file)
     
-    print("\n⚙️ System Tools:")
+    print("\n⚙️ System Tools:", file=output_file)
     for tool in system_tools:
         if tool in tools_list:
-            print(f"  • {tool}")
+            print(f"  • {tool}", file=output_file)
     
-    print("\n" + "="*50)
-    print("🚀 Chrome Debugging Quick Start:")
-    print("1. Use launch_chrome_debug() to start Chrome with debugging")
-    print("2. Use connect_to_chrome() to establish connection")
-    print("3. Use get_chrome_tabs() to see available tabs")
-    print("4. Use start_console_monitoring(tab_id) to monitor console logs")
-    print("5. Use get_console_logs() to retrieve captured logs")
-    print("="*50)
+    print("\n" + "="*50, file=output_file)
+    print("🚀 Chrome Debugging Quick Start:", file=output_file)
+    print("1. Use launch_chrome_debug() to start Chrome with debugging", file=output_file)
+    print("2. Use connect_to_chrome() to establish connection", file=output_file)
+    print("3. Use get_chrome_tabs() to see available tabs", file=output_file)
+    print("4. Use start_console_monitoring(tab_id) to monitor console logs", file=output_file)
+    print("5. Use get_console_logs() to retrieve captured logs", file=output_file)
+    print("="*50, file=output_file)
     
-    # Start the server using FastMCP 2.x API
-    mcp.run(
-        transport="streamable-http",
-        host=SERVER_HOST, 
-        port=SERVER_PORT
-    )
+    # Start the server using appropriate transport
+    if use_stdio:
+        print("🎯 Server ready - listening on STDIO", file=sys.stderr)
+        mcp.run(transport="stdio")
+    else:
+        print(f"🎯 Server starting on http://{args.host}:{args.port}{args.path}")
+        mcp.run(
+            transport="streamable-http",
+            host=args.host, 
+            port=args.port,
+            path=args.path
+        )
 
 """
-CURSOR INTEGRATION INSTRUCTIONS:
-===============================
+INTEGRATION INSTRUCTIONS:
+========================
+
+HTTP Mode (Default - for Cursor IDE):
+====================================
 
 1. Save this file as 'mcp_server.py'
 
@@ -1048,14 +1151,43 @@ CURSOR INTEGRATION INSTRUCTIONS:
 {
   "mcpServers": {
     "cursor-dev-assistant": {
-      "url": "http://127.0.0.1:8000"
+      "url": "http://127.0.0.1:8000/mcp"
     }
   }
 }
 
 5. Restart Cursor
 
-6. Test by asking the AI: "What tools are available from the MCP server?"
+STDIO Mode (for Claude Desktop and local tools):
+==============================================
+
+1. Run the server in STDIO mode:
+   python mcp_server.py --stdio
+
+2. Configure Claude Desktop:
+   - Open Claude Desktop settings
+   - Add this configuration:
+
+{
+  "mcpServers": {
+    "cursor-dev-assistant": {
+      "command": "python",
+      "args": ["/path/to/mcp_server.py", "--stdio"]
+    }
+  }
+}
+
+3. Restart Claude Desktop
+
+Command Line Options:
+===================
+
+python mcp_server.py                    # HTTP mode (default)
+python mcp_server.py --stdio            # STDIO mode
+python mcp_server.py --http             # Explicitly HTTP mode
+python mcp_server.py --port 9000        # Custom port
+python mcp_server.py --host 0.0.0.0     # Bind to all interfaces
+python mcp_server.py --path /custom     # Custom HTTP path
 
 AVAILABLE TOOLS:
 - read_file: Read file contents
