@@ -1,0 +1,274 @@
+---
+description: "Chrome Debug Protocol integration for automated debugging workflows"
+globs: ["**/*.ts", "**/*.tsx", "background.ts", "contents/**/*"]
+alwaysApply: false
+---
+
+# Chrome Debug Protocol Integration Standards
+
+## Automated Debugging Workflows
+Leverage Chrome Debug Protocol for comprehensive debugging without manual intervention:
+
+```typescript
+// Debug session management patterns
+interface DebugSession {
+  tabId: string;
+  sessionActive: boolean;
+  breakpoints: DebugBreakpoint[];
+  consoleMonitoring: boolean;
+}
+
+// Automated debugging workflow
+const automatedDebugFlow = async (issue: string) => {
+  // 1. Launch debug-enabled Chrome
+  await launchChromeDebug();
+  
+  // 2. Connect to debug session
+  const session = await connectToChrome();
+  
+  // 3. Set contextual breakpoints
+  await setIntelligentBreakpoints(issue);
+  
+  // 4. Monitor console for errors
+  await startConsoleMonitoring();
+  
+  // 5. Execute user scenario
+  await executeTestScenario(issue);
+  
+  // 6. Analyze captured data
+  return await analyzeDebugData();
+};
+```
+
+## Intelligent Breakpoint Management
+```typescript
+// Context-aware breakpoint setting
+const setContextualBreakpoints = async (bugContext: string) => {
+  const relevantFiles = await identifyRelevantFiles(bugContext);
+  
+  for (const file of relevantFiles) {
+    // Set breakpoints at critical points
+    await setBreakpoint(file.path, file.criticalLines);
+    
+    // Set conditional breakpoints for specific scenarios
+    await setConditionalBreakpoint(file.path, line, condition);
+  }
+};
+
+// Automatic breakpoint strategies
+enum BreakpointStrategy {
+  ERROR_BOUNDARIES = "error_boundaries",
+  STATE_CHANGES = "state_changes", 
+  API_CALLS = "api_calls",
+  USER_INTERACTIONS = "user_interactions",
+  CHROME_API_USAGE = "chrome_api_usage"
+}
+```
+
+## Console Monitoring and Analysis
+```typescript
+// Automated console analysis
+interface ConsoleAnalysis {
+  errorPatterns: string[];
+  warningTrends: string[];
+  performanceIssues: string[];
+  extensionSpecificIssues: string[];
+}
+
+const analyzeConsoleOutput = (logs: ConsoleLog[]): ConsoleAnalysis => {
+  return {
+    errorPatterns: extractErrorPatterns(logs),
+    warningTrends: identifyWarningTrends(logs),
+    performanceIssues: detectPerformanceIssues(logs),
+    extensionSpecificIssues: findExtensionIssues(logs)
+  };
+};
+
+// Real-time console monitoring
+const monitorConsoleForIssues = async () => {
+  const session = await getActiveDebugSession();
+  
+  session.onConsoleLog((log) => {
+    if (log.level === 'error') {
+      analyzeError(log);
+      suggestFix(log);
+    }
+  });
+};
+```
+
+## Extension-Specific Debug Patterns
+```typescript
+// Chrome extension debugging workflows
+const debugExtensionFlow = async (component: ExtensionComponent) => {
+  switch (component) {
+    case 'popup':
+      return await debugPopupComponent();
+    case 'background':
+      return await debugBackgroundScript();
+    case 'content':
+      return await debugContentScript();
+    case 'options':
+      return await debugOptionsPage();
+  }
+};
+
+// Background script debugging
+const debugBackgroundScript = async () => {
+  // Monitor service worker lifecycle
+  await monitorServiceWorkerEvents();
+  
+  // Track message passing
+  await monitorMessagePassing();
+  
+  // Check extension storage
+  await inspectExtensionStorage();
+  
+  // Verify permissions usage
+  await validatePermissions();
+};
+
+// Content script debugging
+const debugContentScript = async () => {
+  // Monitor injection timing
+  await trackInjectionTiming();
+  
+  // Check DOM access issues
+  await validateDOMAccess();
+  
+  // Monitor cross-origin restrictions
+  await checkCORSIssues();
+  
+  // Verify communication with background
+  await testMessagePassing();
+};
+```
+
+## Performance Debugging Automation
+```typescript
+// Automated performance analysis
+interface PerformanceMetrics {
+  memoryUsage: MemoryProfile;
+  executionTime: TimingProfile;
+  networkActivity: NetworkProfile;
+  domManipulation: DOMProfile;
+}
+
+const analyzeExtensionPerformance = async (): Promise<PerformanceMetrics> => {
+  // Start performance monitoring
+  await startPerformanceRecording();
+  
+  // Execute typical user flows
+  await simulateUserInteractions();
+  
+  // Stop recording and analyze
+  const data = await stopPerformanceRecording();
+  
+  return analyzePerformanceData(data);
+};
+
+// Memory leak detection
+const detectMemoryLeaks = async () => {
+  const baseline = await takeMemorySnapshot();
+  
+  // Execute operations multiple times
+  for (let i = 0; i < 10; i++) {
+    await executeOperationCycle();
+    await forceGarbageCollection();
+  }
+  
+  const final = await takeMemorySnapshot();
+  return compareMemorySnapshots(baseline, final);
+};
+```
+
+## Debug Data Analysis and Reporting
+```typescript
+// Automated issue analysis
+interface DebugReport {
+  issueType: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  affectedComponents: string[];
+  rootCause: string;
+  suggestedFixes: string[];
+  testSteps: string[];
+}
+
+const generateDebugReport = (debugData: DebugData): DebugReport => {
+  const analysis = analyzeDebugData(debugData);
+  
+  return {
+    issueType: classifyIssue(analysis),
+    severity: assessSeverity(analysis),
+    affectedComponents: identifyAffectedComponents(analysis),
+    rootCause: determineRootCause(analysis),
+    suggestedFixes: generateFixSuggestions(analysis),
+    testSteps: createTestSteps(analysis)
+  };
+};
+
+// Integration with development workflow
+const integrateWithWorkflow = async (report: DebugReport) => {
+  // Create issue in project management
+  await createIssue(report);
+  
+  // Generate test cases
+  await generateTestCases(report);
+  
+  // Update documentation
+  await updateTroubleshootingDocs(report);
+  
+  // Notify team
+  await notifyTeam(report);
+};
+```
+
+## Debug Protocol Best Practices
+1. **Session Management**: Always clean up debug sessions
+2. **Resource Monitoring**: Track memory and CPU usage during debugging
+3. **Contextual Debugging**: Focus on relevant code paths based on issue description
+4. **Automated Analysis**: Let AI analyze patterns rather than manual inspection
+5. **Integration**: Connect debug findings to development workflow
+
+## Error Recovery and Failsafes
+```typescript
+// Robust debugging with fallbacks
+const robustDebugSession = async (operation: () => Promise<any>) => {
+  let session;
+  try {
+    session = await connectToChrome();
+    return await operation();
+  } catch (error) {
+    // Fallback to alternative debugging methods
+    return await fallbackDebugging(error);
+  } finally {
+    if (session) {
+      await cleanupDebugSession(session);
+    }
+  }
+};
+
+// Automatic recovery from debug failures
+const handleDebugFailure = async (error: Error) => {
+  if (error.message.includes('connection refused')) {
+    // Restart Chrome in debug mode
+    await restartChromeDebug();
+    return true;
+  }
+  
+  if (error.message.includes('timeout')) {
+    // Increase timeout and retry
+    await adjustTimeoutSettings();
+    return true;
+  }
+  
+  return false; // Manual intervention needed
+};
+```
+
+## AI-Driven Debug Strategies
+- Use pattern recognition to identify common issue types
+- Automatically correlate user reports with debug data
+- Generate hypothesis-driven debug plans
+- Continuously learn from debug session outcomes
+- Integrate with code review feedback for preventive debugging

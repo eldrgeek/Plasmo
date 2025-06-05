@@ -1,0 +1,308 @@
+---
+description: "AI-assisted coding patterns leveraging MCP server capabilities"
+globs: ["**/*.ts", "**/*.tsx", "**/*.py"]
+alwaysApply: false
+---
+
+# AI-Assisted Development with MCP Integration
+
+## MCP-Driven Development Workflow
+Leverage MCP server capabilities for enhanced AI-assisted development:
+
+```typescript
+// AI-guided development cycle
+interface DevelopmentContext {
+  currentTask: string;
+  relatedFiles: string[];
+  testRequirements: string[];
+  performanceGoals: string[];
+  debugContext?: DebugSession;
+}
+
+// Intelligent code analysis and suggestions
+const aiAssistedDevelopment = async (context: DevelopmentContext) => {
+  // 1. Analyze current codebase state
+  const codeAnalysis = await analyzeProjectStructure();
+  
+  // 2. Identify patterns and anti-patterns
+  const patterns = await identifyCodePatterns(context.relatedFiles);
+  
+  // 3. Generate contextual suggestions
+  const suggestions = await generateCodeSuggestions(context, patterns);
+  
+  // 4. Validate against project standards
+  const validation = await validateAgainstStandards(suggestions);
+  
+  return { analysis: codeAnalysis, suggestions, validation };
+};
+```
+
+## Contextual Code Generation
+```typescript
+// Context-aware code generation patterns
+interface CodeGenerationContext {
+  fileType: 'popup' | 'background' | 'content' | 'options' | 'test' | 'mcp';
+  existingPatterns: CodePattern[];
+  integrationPoints: string[];
+  constraints: ProjectConstraints;
+}
+
+// Generate code following project patterns
+const generateContextualCode = (
+  intent: string, 
+  context: CodeGenerationContext
+): GeneratedCode => {
+  const template = selectBestTemplate(context.fileType, intent);
+  const adaptedCode = adaptToProjectPatterns(template, context.existingPatterns);
+  const validated = validateAgainstConstraints(adaptedCode, context.constraints);
+  
+  return {
+    code: validated.code,
+    explanation: validated.reasoning,
+    integrationSteps: validated.integrationGuide,
+    testSuggestions: generateTestCases(validated.code)
+  };
+};
+
+// Extension-specific code generation
+const generateExtensionCode = {
+  popup: (functionality: string) => generatePopupComponent(functionality),
+  background: (feature: string) => generateBackgroundHandler(feature),
+  content: (behavior: string) => generateContentScript(behavior),
+  options: (settings: string[]) => generateOptionsPage(settings),
+  messaging: (protocol: MessageProtocol) => generateMessageHandlers(protocol)
+};
+```
+
+## Intelligent Refactoring Patterns
+```typescript
+// AI-guided refactoring workflows
+interface RefactoringAnalysis {
+  codeSmells: CodeSmell[];
+  improvementOpportunities: Improvement[];
+  riskAssessment: RiskLevel;
+  migrationPath: RefactoringStep[];
+}
+
+const intelligentRefactoring = async (targetCode: string): Promise<RefactoringAnalysis> => {
+  // Analyze current code quality
+  const analysis = await analyzeCodeQuality(targetCode);
+  
+  // Identify refactoring opportunities
+  const opportunities = await identifyRefactoringOpportunities(analysis);
+  
+  // Assess risks and benefits
+  const riskAnalysis = await assessRefactoringRisks(opportunities);
+  
+  // Generate step-by-step refactoring plan
+  const migrationPlan = await createRefactoringPlan(opportunities, riskAnalysis);
+  
+  return {
+    codeSmells: analysis.smells,
+    improvementOpportunities: opportunities,
+    riskAssessment: riskAnalysis.level,
+    migrationPath: migrationPlan
+  };
+};
+
+// Automated refactoring execution
+const executeRefactoring = async (plan: RefactoringStep[]) => {
+  for (const step of plan) {
+    // Execute refactoring step
+    await applyRefactoringStep(step);
+    
+    // Validate changes
+    const validation = await validateRefactoringStep(step);
+    
+    // Run tests to ensure no regressions
+    const testResults = await runTestSuite();
+    
+    if (!validation.success || !testResults.passed) {
+      // Rollback and report issue
+      await rollbackRefactoringStep(step);
+      throw new Error(`Refactoring failed at step: ${step.description}`);
+    }
+  }
+};
+```
+
+## Test-Driven Development with AI
+```typescript
+// AI-assisted TDD workflow
+interface TDDContext {
+  feature: string;
+  acceptance: AcceptanceCriteria[];
+  existingTests: TestFile[];
+  codeContext: CodeContext;
+}
+
+const aiTDDWorkflow = async (context: TDDContext) => {
+  // 1. Generate failing tests based on acceptance criteria
+  const tests = await generateFailingTests(context.acceptance);
+  
+  // 2. Analyze test requirements for implementation
+  const implementation = await analyzeTestRequirements(tests);
+  
+  // 3. Generate minimal implementation to pass tests
+  const code = await generateMinimalImplementation(implementation);
+  
+  // 4. Suggest refactoring opportunities
+  const refactoring = await suggestRefactoring(code, tests);
+  
+  return { tests, implementation: code, refactoring };
+};
+
+// Intelligent test generation
+const generateIntelligentTests = async (functionality: string) => {
+  return {
+    unitTests: await generateUnitTests(functionality),
+    integrationTests: await generateIntegrationTests(functionality),
+    e2eTests: await generateE2ETests(functionality),
+    performanceTests: await generatePerformanceTests(functionality),
+    securityTests: await generateSecurityTests(functionality)
+  };
+};
+```
+
+## Code Review Automation
+```typescript
+// AI-powered code review
+interface CodeReviewAnalysis {
+  qualityScore: number;
+  securityIssues: SecurityIssue[];
+  performanceIssues: PerformanceIssue[];
+  maintainabilityIssues: MaintainabilityIssue[];
+  suggestions: CodeSuggestion[];
+  approvalRecommendation: boolean;
+}
+
+const aiCodeReview = async (pullRequest: PullRequest): Promise<CodeReviewAnalysis> => {
+  // Analyze changed files
+  const changedFiles = await getChangedFiles(pullRequest);
+  const analysis = await analyzeChangedCode(changedFiles);
+  
+  // Check against project standards
+  const standardsCheck = await validateAgainstStandards(analysis);
+  
+  // Security analysis
+  const securityAnalysis = await performSecurityAnalysis(changedFiles);
+  
+  // Performance impact assessment
+  const performanceAnalysis = await assessPerformanceImpact(changedFiles);
+  
+  // Generate review comments
+  const suggestions = await generateReviewSuggestions(analysis);
+  
+  return {
+    qualityScore: calculateQualityScore(analysis),
+    securityIssues: securityAnalysis.issues,
+    performanceIssues: performanceAnalysis.issues,
+    maintainabilityIssues: analysis.maintainabilityIssues,
+    suggestions,
+    approvalRecommendation: shouldApprove(analysis)
+  };
+};
+```
+
+## Continuous Learning Integration
+```typescript
+// AI learning from codebase patterns
+interface LearningContext {
+  successfulPatterns: CodePattern[];
+  failurePatterns: AntiPattern[];
+  userFeedback: FeedbackData[];
+  performanceMetrics: PerformanceData[];
+}
+
+const continuousLearning = async () => {
+  // Analyze successful code patterns
+  const patterns = await extractSuccessfulPatterns();
+  
+  // Learn from debugging sessions
+  const debugLearning = await learnFromDebuggingSessions();
+  
+  // Incorporate user feedback
+  const feedbackLearning = await incorporateUserFeedback();
+  
+  // Update AI models and suggestions
+  await updateAIModels({ patterns, debugLearning, feedbackLearning });
+};
+
+// Pattern recognition and application
+const applyLearnedPatterns = (newCode: string, context: CodeContext) => {
+  const applicablePatterns = findApplicablePatterns(newCode, context);
+  const suggestions = generatePatternBasedSuggestions(applicablePatterns);
+  const improvements = suggestImprovements(newCode, suggestions);
+  
+  return {
+    patterns: applicablePatterns,
+    suggestions,
+    improvements
+  };
+};
+```
+
+## Integration with Development Tools
+```typescript
+// MCP server integration patterns
+const mcpIntegration = {
+  // File operations with context awareness
+  smartFileOperations: async (operation: FileOperation) => {
+    const context = await analyzeFileContext(operation.path);
+    const optimized = await optimizeOperation(operation, context);
+    return await executeMCPOperation(optimized);
+  },
+  
+  // Intelligent code search
+  contextualSearch: async (query: string) => {
+    const context = await getCurrentDevelopmentContext();
+    const enrichedQuery = await enrichSearchQuery(query, context);
+    return await searchWithMCP(enrichedQuery);
+  },
+  
+  // Project analysis with AI insights
+  deepProjectAnalysis: async () => {
+    const structure = await getMCPProjectStructure();
+    const analysis = await analyzeWithAI(structure);
+    const recommendations = await generateRecommendations(analysis);
+    return { structure, analysis, recommendations };
+  }
+};
+```
+
+## AI Development Guidelines
+1. **Context Awareness**: Always consider the full project context when generating suggestions
+2. **Pattern Consistency**: Follow established patterns in the codebase
+3. **Progressive Enhancement**: Build upon existing code rather than replacing wholesale
+4. **Test Integration**: Include test generation with every code suggestion
+5. **Performance Mindfulness**: Consider performance implications of all suggestions
+6. **Security First**: Validate all generated code for security vulnerabilities
+7. **Documentation**: Include explanations and documentation with generated code
+8. **Iterative Improvement**: Use feedback loops to continuously improve suggestions
+
+## Collaboration Patterns
+```typescript
+// AI-human collaboration workflows
+const collaborativeWorkflow = {
+  // AI suggests, human decides
+  advisoryMode: async (task: DevelopmentTask) => {
+    const suggestions = await generateSuggestions(task);
+    const analysis = await analyzeOptions(suggestions);
+    return await presentOptionsToHuman(analysis);
+  },
+  
+  // AI implements, human reviews
+  implementationMode: async (specification: Specification) => {
+    const implementation = await generateImplementation(specification);
+    const validation = await validateImplementation(implementation);
+    return await requestHumanReview(validation);
+  },
+  
+  // AI assists, human leads
+  assistanceMode: async (humanCode: string) => {
+    const analysis = await analyzeHumanCode(humanCode);
+    const suggestions = await generateAssistiveSuggestions(analysis);
+    return await provideContinuousAssistance(suggestions);
+  }
+};
+```

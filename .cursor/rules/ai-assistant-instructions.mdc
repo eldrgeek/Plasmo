@@ -1,0 +1,196 @@
+---
+description: "Instructions for AI assistant to effectively use cursor rules and MCP capabilities"
+alwaysApply: true
+---
+
+# AI Assistant Operating Instructions
+
+## Rule System Integration
+As an AI assistant with MCP access, I should actively reference and follow the established cursor rules:
+
+### Core Workflow
+1. **Read Current Rules**: Always check existing `.cursor/rules/*.mdc` files before providing advice
+2. **Follow Established Patterns**: Adhere to patterns defined in the project's cursor rules
+3. **Use MCP Capabilities**: Leverage MCP server tools for hands-on analysis and implementation
+4. **Update Rules**: Suggest updates to rules based on discovered patterns or improvements
+
+### Rule Categories to Reference
+- **core-architecture.mdc**: Project structure and Chrome extension patterns
+- **typescript-react-standards.mdc**: Code quality and React patterns
+- **testing-strategy.mdc**: Testing approach and implementation
+- **planning-methodology.mdc**: Project planning and agile practices
+- **specification-standards.mdc**: Documentation and API standards
+- **retrospectives-improvement.mdc**: Continuous improvement processes
+- **mcp-server-standards.mdc**: MCP server development patterns
+- **chrome-debug-integration.mdc**: Debug protocol usage patterns
+- **ai-assisted-development.mdc**: AI-enhanced development workflows
+
+## MCP Tool Usage Strategy
+
+### Code Analysis Workflow
+```typescript
+// When analyzing code issues:
+async function analyzeCodeIssue(issue: string) {
+  // 1. Read project structure
+  const structure = await get_project_structure();
+  
+  // 2. Search for related code
+  const relatedFiles = await search_in_files(issue);
+  
+  // 3. Read relevant files
+  const fileContents = await Promise.all(
+    relatedFiles.map(file => read_file(file.path))
+  );
+  
+  // 4. Analyze with cursor rules context
+  const analysis = analyzeWithRulesContext(fileContents, issue);
+  
+  // 5. Use Chrome debug if needed
+  if (requiresDebug(issue)) {
+    await launchChromeDebug();
+    const debugData = await performDebugAnalysis(issue);
+    analysis.debugInsights = debugData;
+  }
+  
+  return analysis;
+}
+```
+
+### Development Assistance Pattern
+```typescript
+// When providing development assistance:
+async function provideDevelopmentAssistance(request: string) {
+  // 1. Understand current context
+  const projectStructure = await get_project_structure();
+  const currentFiles = await list_files(".", "*.{ts,tsx,js,jsx}", true);
+  
+  // 2. Reference applicable cursor rules
+  const applicableRules = await identifyApplicableRules(request);
+  
+  // 3. Analyze existing patterns
+  const codePatterns = await analyzeExistingPatterns(currentFiles);
+  
+  // 4. Generate contextual response
+  const response = generateContextualResponse({
+    request,
+    projectStructure,
+    rules: applicableRules,
+    patterns: codePatterns
+  });
+  
+  // 5. Provide implementation if requested
+  if (request.includes("implement") || request.includes("create")) {
+    const implementation = await generateImplementation(response);
+    await write_file(implementation.path, implementation.content);
+  }
+  
+  return response;
+}
+```
+
+### Debug Session Management
+```typescript
+// When debugging is required:
+async function manageDebugSession(issue: string) {
+  try {
+    // 1. Start debug session
+    await launch_chrome_debug();
+    const connection = await connect_to_chrome();
+    
+    // 2. Set up monitoring
+    await start_console_monitoring(connection.tabs[0].id);
+    
+    // 3. Execute debug workflow
+    const debugData = await executeDebugWorkflow(issue);
+    
+    // 4. Analyze results
+    const analysis = await analyzeDebugResults(debugData);
+    
+    // 5. Generate actionable insights
+    return generateDebugReport(analysis);
+    
+  } finally {
+    // Always clean up
+    await clear_console_logs();
+  }
+}
+```
+
+## Response Generation Guidelines
+
+### Code Suggestions
+When providing code suggestions:
+1. **Check cursor rules** for established patterns
+2. **Analyze existing code** to match style and architecture
+3. **Consider Chrome extension context** (popup, background, content script)
+4. **Include proper TypeScript types** following project standards
+5. **Add appropriate tests** following testing strategy
+6. **Consider performance implications** as outlined in rules
+
+### Problem Solving Approach
+1. **Understand the Problem**: Use MCP tools to analyze the current state
+2. **Reference Standards**: Check cursor rules for applicable patterns
+3. **Analyze Context**: Consider the broader codebase and architecture
+4. **Propose Solutions**: Offer multiple approaches with trade-offs
+5. **Implement if Requested**: Use MCP tools to make actual changes
+6. **Validate Results**: Test and verify implementations
+
+### Communication Style
+- **Be Specific**: Reference exact files, line numbers, and functions
+- **Explain Reasoning**: Connect suggestions to cursor rules and project patterns
+- **Provide Context**: Explain how changes fit into the broader architecture
+- **Offer Alternatives**: Present multiple solutions when applicable
+- **Document Changes**: Explain what was changed and why
+
+## Continuous Improvement
+1. **Learn from Interactions**: Note successful patterns and common issues
+2. **Update Rules**: Suggest improvements to cursor rules based on experience
+3. **Refine Processes**: Optimize MCP tool usage based on outcomes
+4. **Share Knowledge**: Document discoveries and improvements
+
+## Error Handling and Recovery
+```typescript
+// Robust error handling for MCP operations:
+async function robustMCPOperation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    // Log error with context
+    console.error(`MCP operation failed:`, error);
+    
+    // Attempt recovery based on error type
+    if (error.message.includes('file not found')) {
+      // Handle missing files
+      const alternatives = await findAlternativeFiles();
+      return await retryWithAlternatives(operation, alternatives);
+    }
+    
+    if (error.message.includes('permission denied')) {
+      // Handle permission issues
+      await adjustPermissions();
+      return await operation();
+    }
+    
+    // If recovery fails, provide helpful error context
+    throw new Error(`Operation failed: ${error.message}. Consider checking file paths and permissions.`);
+  }
+}
+```
+
+## Integration Checklist
+Before providing any substantial code assistance:
+- [ ] Read relevant cursor rule files
+- [ ] Analyze current project structure
+- [ ] Check existing code patterns
+- [ ] Consider Chrome extension architecture
+- [ ] Validate against TypeScript standards
+- [ ] Ensure testing strategy compliance
+- [ ] Use Chrome debug protocol if needed
+- [ ] Document reasoning and trade-offs
+
+## Success Metrics
+- **Consistency**: Suggestions align with established patterns
+- **Efficiency**: Use MCP tools to minimize manual work
+- **Quality**: Generated code passes all checks and standards
+- **Learning**: Continuously improve based on outcomes
+- **Integration**: Changes fit seamlessly into existing codebase
