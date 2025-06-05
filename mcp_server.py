@@ -7,7 +7,7 @@ This is a Model Context Protocol (MCP) server using fastMCP with HTTP transport.
 It provides tools that can be used by AI assistants in Cursor IDE.
 
 Setup Instructions:
-1. Install dependencies: pip install fastmcp uvicorn
+1. Install dependencies: pip install fastmcp uvicorn websockets aiohttp pychrome
 2. Run server: python mcp_server.py
 3. Add to Cursor settings (see bottom of file for config)
 4. Restart Cursor
@@ -18,6 +18,7 @@ Features:
 - Project structure analysis
 - Git operations
 - Database utilities
+- Chrome Debug Protocol integration for console logs and debugging
 """
 
 import os
@@ -25,8 +26,17 @@ import json
 import subprocess
 import sqlite3
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 import asyncio
+import time
+import threading
+from datetime import datetime
+
+# Chrome Debug Protocol imports
+import websockets
+import aiohttp
+import pychrome
+import requests
 
 from fastmcp import FastMCP
 
@@ -36,6 +46,29 @@ mcp = FastMCP("Cursor Development Assistant")
 # Configuration
 SERVER_PORT = 8000
 SERVER_HOST = "127.0.0.1"
+
+# Chrome Debug Protocol configuration
+CHROME_DEBUG_PORT = 9222
+CHROME_DEBUG_HOST = "localhost"
+
+# Global variables for Chrome connection management
+chrome_instances = {}
+console_logs = []
+console_log_listeners = {}
+
+def make_json_safe(obj):
+    """Convert object to JSON-safe format."""
+    if isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {str(k): make_json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [make_json_safe(item) for item in obj]
+    else:
+        # Convert any other object to string
+        return str(obj)
 
 @mcp.tool()
 def read_file(file_path: str) -> str:
@@ -369,6 +402,532 @@ def server_info() -> Dict[str, str]:
         "available_tools": tools_list
     }
 
+# Chrome Debug Protocol Tools
+# ===========================
+
+@mcp.tool()
+def connect_to_chrome(port: int = 9222, host: str = "localhost") -> Dict[str, Any]:
+    """
+    Connect to a Chrome instance running with debug mode enabled.
+    
+    Args:
+        port: Chrome debug port (default: 9222)
+        host: Chrome debug host (default: localhost)
+        
+    Returns:
+        Connection status and available tabs
+    """
+    try:
+        # Get tabs directly from Chrome's HTTP API instead of using pychrome objects
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        tabs_data = response.json()
+        
+        # Create browser instance for other operations
+        browser = pychrome.Browser(url=f"http://{host}:{port}")
+        
+        # Store browser instance for later use
+        connection_id = f"{host}:{port}"
+        chrome_instances[connection_id] = browser
+        
+        # Extract clean tab information from the HTTP API response
+        tab_list = []
+        for tab_data in tabs_data:
+            tab_info = {
+                "id": str(tab_data.get("id", "")),
+                "title": str(tab_data.get("title", "")),
+                "url": str(tab_data.get("url", "")),
+                "type": str(tab_data.get("type", "page"))
+            }
+            tab_list.append(tab_info)
+        
+        return {
+            "status": "connected",
+            "connection_id": connection_id,
+            "tabs_count": len(tab_list),
+            "tabs": tab_list
+        }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e),
+            "suggestion": "Make sure Chrome is running with --remote-debugging-port=9222"
+        }
+
+@mcp.tool()
+def get_chrome_tabs(connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Get list of available Chrome tabs for debugging.
+    
+    Args:
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        List of available tabs
+    """
+    try:
+        if connection_id not in chrome_instances:
+            return {"error": "Not connected to Chrome. Use connect_to_chrome first."}
+        
+        # Extract host and port from connection_id
+        host, port = connection_id.split(":")
+        
+        # Get tabs directly from Chrome's HTTP API
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        tabs_data = response.json()
+        
+        # Extract clean tab information
+        tab_list = []
+        for tab_data in tabs_data:
+            tab_info = {
+                "id": str(tab_data.get("id", "")),
+                "title": str(tab_data.get("title", "")),
+                "url": str(tab_data.get("url", "")),
+                "type": str(tab_data.get("type", "page")),
+                "description": str(tab_data.get("description", "")),
+                "websocket_debug_url": str(tab_data.get("webSocketDebuggerUrl", ""))
+            }
+            tab_list.append(tab_info)
+        
+        return {
+            "tabs": tab_list
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def start_console_monitoring(tab_id: str, connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Start monitoring console logs for a specific Chrome tab.
+    
+    Args:
+        tab_id: Chrome tab ID to monitor
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        Status of console monitoring setup
+    """
+    try:
+        if connection_id not in chrome_instances:
+            return {"error": "Not connected to Chrome. Use connect_to_chrome first."}
+        
+        # Extract host and port from connection_id
+        host, port = connection_id.split(":")
+        
+        # Verify the tab exists
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        tabs_data = response.json()
+        
+        tab_found = False
+        tab_info = None
+        for tab_data in tabs_data:
+            if tab_data.get("id") == tab_id:
+                tab_found = True
+                tab_info = tab_data
+                break
+        
+        if not tab_found:
+            return {"error": f"Tab with ID {tab_id} not found"}
+        
+        # Get the WebSocket URL for this tab
+        ws_url = tab_info.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return {"error": f"No WebSocket URL available for tab {tab_id}"}
+        
+        # Clear existing logs for this tab
+        listener_key = f"{connection_id}:{tab_id}"
+        if listener_key not in console_log_listeners:
+            console_log_listeners[listener_key] = []
+        
+        # Store the WebSocket URL for later use
+        console_log_listeners[listener_key].append({
+            "timestamp": datetime.now().isoformat(),
+            "tab_id": str(tab_id),
+            "connection_id": str(connection_id),
+            "level": "info",
+            "text": f"Started monitoring tab: {tab_info.get('title', 'Unknown')}",
+            "source": "mcp-server",
+            "websocket_url": ws_url
+        })
+        
+        return {
+            "status": "monitoring_started",
+            "tab_id": str(tab_id),
+            "connection_id": str(connection_id),
+            "listener_key": str(listener_key),
+            "tab_title": str(tab_info.get("title", "")),
+            "tab_url": str(tab_info.get("url", "")),
+            "tab_type": str(tab_info.get("type", "")),
+            "websocket_url": ws_url,
+            "note": "Use execute_javascript() to inject console logs or interact with the tab"
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def get_console_logs(tab_id: str = None, connection_id: str = "localhost:9222", limit: int = 50) -> Dict[str, Any]:
+    """
+    Retrieve console logs from Chrome debugging session.
+    
+    Args:
+        tab_id: Specific tab ID to get logs from (optional, gets all if not specified)
+        connection_id: Chrome connection identifier
+        limit: Maximum number of logs to return
+        
+    Returns:
+        List of console log entries
+    """
+    try:
+        if tab_id:
+            listener_key = f"{connection_id}:{tab_id}"
+            if listener_key in console_log_listeners:
+                logs = console_log_listeners[listener_key][-limit:]
+            else:
+                logs = [log for log in console_logs if log["tab_id"] == str(tab_id)][-limit:]
+        else:
+            logs = console_logs[-limit:]
+        
+        return {
+            "logs": logs,
+            "total_logs": len(logs),
+            "tab_id": str(tab_id) if tab_id else None,
+            "connection_id": str(connection_id)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def clear_console_logs(tab_id: str = None, connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Clear console logs for a specific tab or all tabs.
+    
+    Args:
+        tab_id: Specific tab ID to clear logs from (optional, clears all if not specified)
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        Status of log clearing operation
+    """
+    try:
+        if tab_id:
+            listener_key = f"{connection_id}:{tab_id}"
+            if listener_key in console_log_listeners:
+                cleared_count = len(console_log_listeners[listener_key])
+                console_log_listeners[listener_key] = []
+                
+                # Also remove from global logs
+                global console_logs
+                console_logs = [log for log in console_logs if log["tab_id"] != str(tab_id)]
+                
+                return {
+                    "status": "cleared",
+                    "tab_id": str(tab_id),
+                    "cleared_count": cleared_count
+                }
+            else:
+                return {"status": "no_logs", "tab_id": str(tab_id)}
+        else:
+            # Clear all logs
+            total_cleared = len(console_logs)
+            console_logs.clear()
+            for key in console_log_listeners:
+                console_log_listeners[key] = []
+            
+            return {
+                "status": "all_cleared",
+                "cleared_count": total_cleared
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def execute_javascript(code: str, tab_id: str, connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Execute JavaScript code in a Chrome tab for debugging.
+    
+    Args:
+        code: JavaScript code to execute
+        tab_id: Chrome tab ID to execute code in
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        Execution result
+    """
+    try:
+        if connection_id not in chrome_instances:
+            return {"error": "Not connected to Chrome. Use connect_to_chrome first."}
+        
+        # Extract host and port from connection_id
+        host, port = connection_id.split(":")
+        
+        # Get tab information
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        tabs_data = response.json()
+        
+        tab_info = None
+        for tab_data in tabs_data:
+            if tab_data.get("id") == tab_id:
+                tab_info = tab_data
+                break
+        
+        if not tab_info:
+            return {"error": f"Tab with ID {tab_id} not found"}
+        
+        # Get the WebSocket URL
+        ws_url = tab_info.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return {"error": f"No WebSocket URL available for tab {tab_id}"}
+        
+        # Use WebSocket to execute JavaScript
+        import websocket
+        
+        ws = websocket.create_connection(ws_url, timeout=10)
+        
+        # Enable Runtime domain
+        ws.send(json.dumps({'id': 1, 'method': 'Runtime.enable'}))
+        enable_result = ws.recv()
+        
+        # Execute the JavaScript code
+        ws.send(json.dumps({
+            'id': 2, 
+            'method': 'Runtime.evaluate', 
+            'params': {
+                'expression': code,
+                'returnByValue': True
+            }
+        }))
+        
+        execution_result = ws.recv()
+        ws.close()
+        
+        # Parse the result
+        result_data = json.loads(execution_result)
+        
+        if result_data.get("id") == 2 and "result" in result_data:
+            execution_data = result_data["result"]
+            
+            # Clean the result to be JSON-safe
+            clean_result = {}
+            if execution_data and "result" in execution_data:
+                result_obj = execution_data["result"]
+                clean_result = {
+                    "type": str(result_obj.get("type", "")),
+                    "value": make_json_safe(result_obj.get("value")),
+                    "description": str(result_obj.get("description", "")) if result_obj.get("description") else None
+                }
+            
+            # Check for exceptions
+            exception_details = execution_data.get("exceptionDetails")
+            if exception_details:
+                return {
+                    "success": False,
+                    "error": str(exception_details.get("text", "JavaScript execution failed")),
+                    "exception": make_json_safe(exception_details),
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
+            
+            return {
+                "success": True,
+                "result": clean_result,
+                "tab_id": str(tab_id),
+                "connection_id": str(connection_id),
+                "tab_title": str(tab_info.get("title", "")),
+                "tab_type": str(tab_info.get("type", ""))
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Unexpected response format",
+                "raw_response": make_json_safe(result_data),
+                "tab_id": str(tab_id),
+                "connection_id": str(connection_id)
+            }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "tab_id": str(tab_id),
+            "connection_id": str(connection_id)
+        }
+
+@mcp.tool()
+def set_breakpoint(url: str, line_number: int, tab_id: str, connection_id: str = "localhost:9222", condition: str = None) -> Dict[str, Any]:
+    """
+    Set a breakpoint in Chrome DevTools for debugging.
+    
+    Args:
+        url: URL or file path where to set the breakpoint
+        line_number: Line number for the breakpoint
+        tab_id: Chrome tab ID
+        connection_id: Chrome connection identifier
+        condition: Optional condition for conditional breakpoint
+        
+    Returns:
+        Breakpoint setting result
+    """
+    try:
+        if connection_id not in chrome_instances:
+            return {"error": "Not connected to Chrome. Use connect_to_chrome first."}
+        
+        browser = chrome_instances[connection_id]
+        tab = browser.get_tab(tab_id)
+        
+        # Enable Debugger domain
+        tab.Debugger.enable()
+        
+        # Set breakpoint
+        if condition:
+            result = tab.Debugger.setBreakpointByUrl(
+                lineNumber=line_number,
+                url=url,
+                condition=condition
+            )
+        else:
+            result = tab.Debugger.setBreakpointByUrl(
+                lineNumber=line_number,
+                url=url
+            )
+        
+        # Clean the result
+        actual_location = result.get("actualLocation", {})
+        clean_location = {}
+        if actual_location:
+            clean_location = {
+                "lineNumber": int(actual_location.get("lineNumber", line_number)),
+                "columnNumber": int(actual_location.get("columnNumber", 0)),
+                "scriptId": str(actual_location.get("scriptId", ""))
+            }
+        
+        return {
+            "success": True,
+            "breakpoint_id": str(result.get("breakpointId", "")),
+            "actual_location": clean_location,
+            "url": str(url),
+            "line_number": int(line_number),
+            "condition": str(condition) if condition else None,
+            "tab_id": str(tab_id),
+            "connection_id": str(connection_id)
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "url": str(url),
+            "line_number": int(line_number),
+            "tab_id": str(tab_id),
+            "connection_id": str(connection_id)
+        }
+
+@mcp.tool()
+def get_chrome_debug_info(connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Get comprehensive debugging information about the Chrome instance.
+    
+    Args:
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        Debugging information including tabs, logs count, and connection status
+    """
+    try:
+        info = {
+            "connection_id": str(connection_id),
+            "connected": connection_id in chrome_instances,
+            "total_console_logs": len(console_logs),
+            "active_listeners": len(console_log_listeners),
+            "listener_details": {}
+        }
+        
+        if connection_id in chrome_instances:
+            try:
+                # Extract host and port from connection_id
+                host, port = connection_id.split(":")
+                
+                # Get tabs directly from Chrome's HTTP API
+                response = requests.get(f"http://{host}:{port}/json", timeout=5)
+                tabs_data = response.json()
+                
+                info["tabs"] = [
+                    {
+                        "id": str(tab_data.get("id", "")),
+                        "title": str(tab_data.get("title", "")),
+                        "url": str(tab_data.get("url", "")),
+                        "type": str(tab_data.get("type", "page"))
+                    }
+                    for tab_data in tabs_data
+                ]
+            except Exception as tab_error:
+                info["tabs"] = []
+                info["tab_error"] = str(tab_error)
+        else:
+            info["tabs"] = []
+        
+        # Add listener details
+        for listener_key, logs in console_log_listeners.items():
+            info["listener_details"][str(listener_key)] = {
+                "log_count": len(logs),
+                "latest_log": logs[-1]["timestamp"] if logs else None
+            }
+        
+        return info
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool()
+def launch_chrome_debug() -> Dict[str, Any]:
+    """
+    Launch Chrome with debugging enabled on the configured port.
+    
+    Returns:
+        Status of Chrome launch attempt
+    """
+    try:
+        # Chrome command with debugging flags
+        chrome_cmd = [
+            "google-chrome",  # or "chrome" on some systems
+            f"--remote-debugging-port={CHROME_DEBUG_PORT}",
+            "--remote-allow-origins=*",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor",
+            "--user-data-dir=./chrome-debug-profile"
+        ]
+        
+        # Try different Chrome executable names
+        chrome_names = ["google-chrome", "chrome", "chromium", "chromium-browser", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+        
+        launched = False
+        for chrome_name in chrome_names:
+            try:
+                chrome_cmd[0] = chrome_name
+                subprocess.Popen(chrome_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                launched = True
+                break
+            except FileNotFoundError:
+                continue
+        
+        if not launched:
+            return {
+                "status": "failed",
+                "error": "Chrome executable not found",
+                "suggestion": "Make sure Chrome is installed and accessible in PATH"
+            }
+        
+        # Wait a moment for Chrome to start
+        time.sleep(2)
+        
+        return {
+            "status": "launched",
+            "debug_port": CHROME_DEBUG_PORT,
+            "debug_url": f"http://{CHROME_DEBUG_HOST}:{CHROME_DEBUG_PORT}",
+            "next_step": "Use connect_to_chrome() to establish connection"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 if __name__ == "__main__":
     # Get tools count for display
     tools_count = 0
@@ -378,11 +937,15 @@ if __name__ == "__main__":
         tools_count = len(tools_list)
     except:
         # Fallback - count the decorated functions
-        tools_count = 11  # Hardcoded count of tools we defined
+        tools_count = 19  # Updated count including Chrome debugging tools
         tools_list = [
             "read_file", "write_file", "list_files", "get_project_structure",
             "analyze_code", "run_git_command", "search_in_files", 
-            "create_sqlite_db", "query_sqlite_db", "get_system_info", "server_info"
+            "create_sqlite_db", "query_sqlite_db", "get_system_info", "server_info",
+            # Chrome Debug Protocol tools
+            "connect_to_chrome", "get_chrome_tabs", "start_console_monitoring",
+            "get_console_logs", "clear_console_logs", "execute_javascript",
+            "set_breakpoint", "get_chrome_debug_info", "launch_chrome_debug"
         ]
     
     print(f"""
@@ -391,6 +954,10 @@ if __name__ == "__main__":
 Server: http://{SERVER_HOST}:{SERVER_PORT}
 Transport: HTTP
 Tools available: {tools_count}
+
+🔧 Chrome Debug Protocol Support Added!
+Chrome Debug Port: {CHROME_DEBUG_PORT}
+Use launch_chrome_debug() to start Chrome with debugging enabled
 
 To integrate with Cursor:
 1. Open Cursor settings (Cmd/Ctrl + ,)
@@ -411,10 +978,48 @@ To integrate with Cursor:
 Available Tools:
 """)
     
-    for tool_name in tools_list:
-        print(f"  • {tool_name}")
+    # Group tools by category for better display
+    file_tools = ["read_file", "write_file", "list_files", "get_project_structure"]
+    code_tools = ["analyze_code", "run_git_command", "search_in_files"]
+    db_tools = ["create_sqlite_db", "query_sqlite_db"]
+    chrome_tools = ["launch_chrome_debug", "connect_to_chrome", "get_chrome_tabs", 
+                   "start_console_monitoring", "get_console_logs", "clear_console_logs",
+                   "execute_javascript", "set_breakpoint", "get_chrome_debug_info"]
+    system_tools = ["get_system_info", "server_info"]
+    
+    print("📁 File Operations:")
+    for tool in file_tools:
+        if tool in tools_list:
+            print(f"  • {tool}")
+    
+    print("\n💻 Code Analysis:")
+    for tool in code_tools:
+        if tool in tools_list:
+            print(f"  • {tool}")
+    
+    print("\n🗄️ Database Tools:")
+    for tool in db_tools:
+        if tool in tools_list:
+            print(f"  • {tool}")
+    
+    print("\n🌐 Chrome Debug Protocol:")
+    for tool in chrome_tools:
+        if tool in tools_list:
+            print(f"  • {tool}")
+    
+    print("\n⚙️ System Tools:")
+    for tool in system_tools:
+        if tool in tools_list:
+            print(f"  • {tool}")
     
     print("\n" + "="*50)
+    print("🚀 Chrome Debugging Quick Start:")
+    print("1. Use launch_chrome_debug() to start Chrome with debugging")
+    print("2. Use connect_to_chrome() to establish connection")
+    print("3. Use get_chrome_tabs() to see available tabs")
+    print("4. Use start_console_monitoring(tab_id) to monitor console logs")
+    print("5. Use get_console_logs() to retrieve captured logs")
+    print("="*50)
     
     # Start the server using FastMCP 2.x API
     mcp.run(
@@ -430,7 +1035,7 @@ CURSOR INTEGRATION INSTRUCTIONS:
 1. Save this file as 'mcp_server.py'
 
 2. Install dependencies:
-   pip install fastmcp uvicorn
+   pip install fastmcp uvicorn websockets aiohttp pychrome
 
 3. Run the server:
    python mcp_server.py
@@ -465,10 +1070,33 @@ AVAILABLE TOOLS:
 - get_system_info: System information
 - server_info: MCP server details
 
+🌐 CHROME DEBUG PROTOCOL TOOLS:
+- launch_chrome_debug: Launch Chrome with debugging enabled
+- connect_to_chrome: Connect to Chrome debug instance
+- get_chrome_tabs: List available browser tabs
+- start_console_monitoring: Begin monitoring console output
+- get_console_logs: Retrieve captured console logs
+- clear_console_logs: Clear console log history
+- execute_javascript: Run JavaScript in Chrome tab
+- set_breakpoint: Set debugging breakpoints
+- get_chrome_debug_info: Get comprehensive debug information
+
+CHROME DEBUGGING SETUP:
+1. Install dependencies: pip install fastmcp websockets aiohttp pychrome
+2. Launch Chrome with debugging: Use launch_chrome_debug() tool
+3. Or manually: chrome --remote-debugging-port=9222
+4. Connect to Chrome: Use connect_to_chrome() tool
+5. Start monitoring: Use start_console_monitoring(tab_id) tool
+
 EXAMPLE PROMPTS:
 - "Read the package.json file in my project"
 - "Show me the project structure"
 - "Search for 'TODO' comments in Python files"
 - "What's the git status of this repository?"
 - "Analyze the code in src/main.py"
+- "Launch Chrome with debugging enabled"
+- "Connect to Chrome and show me the available tabs"
+- "Start monitoring console logs for the first tab"
+- "Get the latest console logs from Chrome"
+- "Execute JavaScript: console.log('Hello from MCP!')"
 """ 
