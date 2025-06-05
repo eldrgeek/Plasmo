@@ -1,0 +1,243 @@
+---
+description: "MCP server development and integration standards"
+globs: ["**/*mcp*.py", "**/*mcp*.ts", "**/*mcp*.js", "**/mcp_server.py"]
+alwaysApply: false
+---
+
+# MCP Server Development Standards
+
+## FastMCP Implementation Patterns
+Follow these patterns for consistent MCP server development:
+
+```python
+from fastmcp import FastMCP
+import uvicorn
+from typing import List, Dict, Any, Optional
+
+# Initialize with descriptive name
+mcp = FastMCP("Plasmo Development Assistant")
+
+@mcp.tool()
+def tool_name(param: str, optional_param: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Clear, descriptive docstring explaining tool purpose.
+    
+    Args:
+        param: Description of required parameter
+        optional_param: Description of optional parameter
+        
+    Returns:
+        Dictionary with tool execution results
+        
+    Example:
+        >>> tool_name("example", 42)
+        {"success": True, "data": {...}}
+    """
+    try:
+        # Implementation with proper error handling
+        result = perform_operation(param, optional_param)
+        return {"success": True, "data": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+```
+
+## Error Handling Standards
+```python
+# Consistent error response format
+def handle_error(operation: str, error: Exception) -> Dict[str, Any]:
+    """Standard error response format for MCP tools."""
+    return {
+        "success": False,
+        "operation": operation,
+        "error": str(error),
+        "error_type": type(error).__name__
+    }
+
+# Usage in tools
+@mcp.tool()
+def file_operation(path: str) -> Dict[str, Any]:
+    """Perform file operation with proper error handling."""
+    try:
+        # File operation logic
+        return {"success": True, "data": result}
+    except FileNotFoundError as e:
+        return handle_error("file_read", e)
+    except PermissionError as e:
+        return handle_error("file_access", e)
+    except Exception as e:
+        return handle_error("file_operation", e)
+```
+
+## Security Best Practices
+- Validate all input parameters
+- Sanitize file paths to prevent directory traversal
+- Implement rate limiting for resource-intensive operations
+- Use allowlists for permitted file operations
+- Never expose sensitive system information
+
+```python
+import os
+from pathlib import Path
+
+def safe_path_check(requested_path: str, allowed_base: str) -> bool:
+    """Ensure requested path is within allowed directory."""
+    try:
+        requested = Path(requested_path).resolve()
+        allowed = Path(allowed_base).resolve()
+        return str(requested).startswith(str(allowed))
+    except Exception:
+        return False
+
+@mcp.tool()
+def safe_file_read(file_path: str) -> Dict[str, Any]:
+    """Read file with security checks."""
+    if not safe_path_check(file_path, os.getcwd()):
+        return {"success": False, "error": "Access denied: path outside project"}
+    
+    # Proceed with file reading
+```
+
+## Tool Categories and Organization
+Organize tools into logical categories:
+
+### File Operations
+- `read_file`: Read file contents
+- `write_file`: Write to files with backup
+- `list_files`: Directory listing with filtering
+- `search_in_files`: Content search across files
+
+### Development Tools
+- `analyze_code`: Code quality analysis
+- `run_tests`: Execute test suites
+- `lint_code`: Static analysis and formatting
+- `get_dependencies`: Package dependency analysis
+
+### Git Operations
+- `git_status`: Repository status
+- `git_log`: Commit history
+- `git_diff`: Show changes
+- `git_branch`: Branch operations (read-only)
+
+### Chrome Extension Specific
+- `validate_manifest`: Check manifest.json compliance
+- `check_permissions`: Analyze permission usage
+- `build_extension`: Execute build process
+- `package_extension`: Create distribution package
+
+## HTTP Transport Configuration
+```python
+# Server configuration
+SERVER_CONFIG = {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "log_level": "info",
+    "reload": False  # Set to True only in development
+}
+
+if __name__ == "__main__":
+    print(f"Starting MCP server on {SERVER_CONFIG['host']}:{SERVER_CONFIG['port']}")
+    uvicorn.run(mcp.app, **SERVER_CONFIG)
+```
+
+## Cursor Integration Guidelines
+```json
+{
+  "mcpServers": {
+    "plasmo-dev-assistant": {
+      "transport": {
+        "type": "http",
+        "url": "http://127.0.0.1:8000"
+      },
+      "description": "Development tools for Plasmo Chrome extension",
+      "capabilities": [
+        "file_operations",
+        "code_analysis", 
+        "git_integration",
+        "extension_tools"
+      ]
+    }
+  }
+}
+```
+
+## Performance Optimization
+- Cache frequently accessed data
+- Implement async operations for I/O bound tasks
+- Use streaming for large file operations
+- Limit result sizes with pagination
+- Monitor memory usage for long-running operations
+
+```python
+import asyncio
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def cached_file_analysis(file_path: str) -> Dict[str, Any]:
+    """Cache expensive file analysis operations."""
+    return perform_analysis(file_path)
+
+@mcp.tool()
+async def async_large_operation(directory: str) -> Dict[str, Any]:
+    """Handle large operations asynchronously."""
+    try:
+        result = await asyncio.to_thread(process_large_directory, directory)
+        return {"success": True, "data": result}
+    except Exception as e:
+        return handle_error("large_operation", e)
+```
+
+## Testing MCP Tools
+```python
+import pytest
+from unittest.mock import patch, mock_open
+
+def test_file_read_tool():
+    """Test file reading tool functionality."""
+    mock_content = "test file content"
+    
+    with patch("builtins.open", mock_open(read_data=mock_content)):
+        result = read_file("test.txt")
+        
+    assert result["success"] is True
+    assert result["data"] == mock_content
+
+def test_file_read_error():
+    """Test file reading error handling."""
+    with patch("builtins.open", side_effect=FileNotFoundError):
+        result = read_file("nonexistent.txt")
+        
+    assert result["success"] is False
+    assert "error" in result
+```
+
+## Logging and Monitoring
+```python
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+@mcp.tool()
+def logged_operation(param: str) -> Dict[str, Any]:
+    """Tool with proper logging."""
+    logger.info(f"Starting operation with param: {param}")
+    
+    try:
+        result = perform_operation(param)
+        logger.info(f"Operation completed successfully")
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Operation failed: {str(e)}")
+        return handle_error("operation", e)
+```
+
+## Documentation Requirements
+- Each tool must have comprehensive docstrings
+- Include usage examples in docstrings
+- Document all parameters and return values
+- Provide integration examples for Cursor
+- Maintain API changelog for breaking changes

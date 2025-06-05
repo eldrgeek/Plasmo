@@ -1,0 +1,200 @@
+---
+description: "Sprint retrospectives and continuous improvement processes"
+globs: ["**/retrospectives/**", "**/post-mortems/**", "**/improvement/**"]
+alwaysApply: false
+---
+
+# Retrospectives & Continuous Improvement
+
+## Sprint Retrospective Format
+Conduct retrospectives using the "Start, Stop, Continue" framework with additional elements:
+
+```markdown
+# Sprint [Number] Retrospective
+**Date**: [Date]  
+**Participants**: [Team Members]  
+**Sprint Goal**: [Original Goal]  
+**Goal Achievement**: [Met/Partially Met/Not Met]
+
+## Metrics Review
+- **Velocity**: [Points completed vs planned]
+- **Quality**: [Bugs found, test coverage, code review feedback]
+- **Chrome Extension**: [Store ratings, user feedback, performance metrics]
+- **Technical Debt**: [Items addressed vs added]
+
+## What Went Well (Continue)
+- [Specific positive outcomes]
+- [Effective practices to maintain]
+- [Successful collaborations]
+
+## What Didn't Go Well (Stop)
+- [Issues that hindered progress]
+- [Ineffective practices to eliminate]
+- [Communication breakdowns]
+
+## What We Should Try (Start)
+- [New practices to experiment with]
+- [Tools or processes to adopt]
+- [Skills to develop]
+
+## Action Items
+- [ ] [Specific action] - Owner: [Name] - Due: [Date]
+- [ ] [Process improvement] - Owner: [Name] - Due: [Date]
+- [ ] [Technical change] - Owner: [Name] - Due: [Date]
+
+## Chrome Extension Specific Insights
+- Store review feedback analysis
+- User support ticket patterns
+- Performance monitoring results
+- Security audit findings
+
+## Team Health Assessment
+Rate 1-5 (5 = excellent):
+- **Collaboration**: [Score] - [Notes]
+- **Learning**: [Score] - [Notes]
+- **Fun**: [Score] - [Notes]
+- **Delivering Value**: [Score] - [Notes]
+```
+
+## Retrospective Facilitation Guidelines
+1. **Psychological Safety**: Focus on systems, not individuals
+2. **Data-Driven**: Use metrics to support observations
+3. **Actionable Outcomes**: Every insight should lead to specific actions
+4. **Time-boxed**: 90 minutes maximum for 2-week sprints
+5. **Rotating Facilitation**: Different team member each sprint
+
+## Post-Mortem Process
+For significant issues or outages:
+
+```markdown
+# Post-Mortem: [Incident Title]
+**Date**: [Incident Date]  
+**Duration**: [How long issue persisted]  
+**Impact**: [Users affected, functionality lost]  
+**Severity**: [Critical/High/Medium/Low]
+
+## Timeline
+- **[Time]**: [Event description]
+- **[Time]**: [Event description]
+- **[Time]**: [Resolution achieved]
+
+## Root Cause Analysis
+- **Immediate Cause**: [What directly caused the issue]
+- **Contributing Factors**: [What made this possible]
+- **Root Cause**: [Underlying system/process issue]
+
+## What Went Well
+- [Effective response actions]
+- [Good monitoring/alerting]
+- [Successful communication]
+
+## What Could Be Improved
+- [Response time issues]
+- [Missing monitoring]
+- [Communication gaps]
+
+## Action Items
+- [ ] [Immediate fix] - Owner: [Name] - Due: [Date]
+- [ ] [Process improvement] - Owner: [Name] - Due: [Date]
+- [ ] [Monitoring enhancement] - Owner: [Name] - Due: [Date]
+- [ ] [Documentation update] - Owner: [Name] - Due: [Date]
+
+## Prevention Measures
+- [System changes to prevent recurrence]
+- [Process improvements]
+- [Training or knowledge sharing needed]
+```
+
+## Continuous Improvement Framework
+
+### Monthly Technical Health Review
+- Code quality metrics analysis
+- Performance monitoring review
+- Security audit results
+- Dependency update status
+- Technical debt assessment
+
+### Quarterly Architecture Review
+- Design pattern effectiveness
+- Technology stack evaluation
+- Scalability assessment
+- Integration point analysis
+- Future technology planning
+
+### Learning and Development Tracking
+```markdown
+## Team Learning Goals - Q[Quarter] [Year]
+
+### Individual Development Plans
+- **[Team Member]**: [Skills to develop] - [Learning resources] - [Timeline]
+- **[Team Member]**: [Skills to develop] - [Learning resources] - [Timeline]
+
+### Team-wide Learning Initiatives
+- [ ] [Technology workshop] - [Date] - [Facilitator]
+- [ ] [Best practices sharing] - [Date] - [Topic]
+- [ ] [External conference/training] - [Event] - [Attendees]
+
+### Knowledge Sharing Sessions
+- **Brown Bag Lunches**: [Schedule and topics]
+- **Code Reviews**: [Focus areas for learning]
+- **Pair Programming**: [Rotation schedule]
+```
+
+## Metrics for Continuous Improvement
+
+### Development Metrics
+- Sprint velocity trends
+- Code review feedback patterns
+- Bug discovery timing (dev vs production)
+- Test coverage evolution
+- Build/deployment success rates
+
+### Extension-Specific Metrics
+- Chrome Web Store ratings and reviews
+- User adoption and retention rates
+- Extension performance (load times, memory usage)
+- Permission usage analytics
+- Update success rates
+
+### Team Health Metrics
+- Retrospective action item completion rate
+- Team satisfaction surveys
+- Knowledge sharing frequency
+- Cross-training effectiveness
+- Innovation time usage
+
+## Improvement Experiment Framework
+```markdown
+## Improvement Experiment: [Title]
+**Hypothesis**: [What we believe will improve]  
+**Success Criteria**: [How we'll measure success]  
+**Duration**: [Experiment timeline]  
+**Participants**: [Who's involved]
+
+### Implementation Plan
+- [Step 1 with timeline]
+- [Step 2 with timeline]
+- [Step 3 with timeline]
+
+### Measurements
+- **Baseline**: [Current state metrics]
+- **Target**: [Desired improvement]
+- **Measurement Method**: [How we'll track progress]
+
+### Results
+- [Actual outcomes vs targets]
+- [Unexpected effects]
+- [Lessons learned]
+
+### Decision
+- [ ] Adopt permanently
+- [ ] Modify and continue
+- [ ] Discontinue
+```
+
+## Communication and Follow-up
+- Share retrospective summaries with stakeholders
+- Update team charter and working agreements
+- Track action item completion in next retrospectives
+- Celebrate improvements and learning achievements
+- Document successful practices for future teams

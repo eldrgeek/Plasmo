@@ -1,0 +1,202 @@
+---
+description: "API documentation and technical specification standards"
+globs: ["**/docs/**", "**/*.md", "**/api/**", "**/specs/**"]
+alwaysApply: false
+---
+
+# API Documentation & Technical Specifications
+
+## API Documentation Structure
+Follow OpenAPI/Swagger standards for all APIs including MCP server endpoints:
+
+```yaml
+# MCP Server API Specification
+openapi: 3.0.3
+info:
+  title: Plasmo Extension MCP Server
+  description: Model Context Protocol server for development tools
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@example.com
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+paths:
+  /tools:
+    get:
+      summary: List available MCP tools
+      description: Returns all available development tools
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tool'
+```
+
+## Chrome Extension API Documentation
+Document all Chrome API integrations:
+
+```typescript
+/**
+ * Background Script Message Handler
+ * 
+ * @description Handles messages from popup and content scripts
+ * @param request - Message request object
+ * @param sender - Message sender information
+ * @param sendResponse - Response callback function
+ * 
+ * @example
+ * // From popup to background
+ * chrome.runtime.sendMessage({
+ *   action: 'getTabInfo'
+ * }, (response) => {
+ *   console.log('Current tab:', response.title);
+ * });
+ */
+interface MessageRequest {
+  action: 'getTabInfo' | 'showNotification' | string;
+  data?: unknown;
+}
+
+interface MessageResponse {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+```
+
+## Technical Specification Templates
+
+### Feature Specification
+```markdown
+# Feature: [Feature Name]
+
+## Overview
+Brief description of the feature and its purpose.
+
+## Requirements
+- Functional requirements
+- Non-functional requirements (performance, security, etc.)
+- Browser compatibility requirements
+
+## Architecture
+- Component diagrams
+- Data flow diagrams
+- Integration points
+
+## API Design
+- Endpoint specifications
+- Message passing protocols
+- Data schemas
+
+## Security Considerations
+- Permission requirements
+- Data handling policies
+- User privacy protections
+
+## Testing Strategy
+- Unit test requirements
+- Integration test scenarios
+- Manual testing procedures
+
+## Performance Requirements
+- Load time targets
+- Memory usage limits
+- Network efficiency goals
+
+## Rollout Plan
+- Development phases
+- Testing milestones
+- Release criteria
+```
+
+## Code Documentation Standards
+Use JSDoc for all public APIs:
+
+```typescript
+/**
+ * Highlights text on the current page
+ * 
+ * @param text - The text to highlight
+ * @param color - Highlight color (default: yellow)
+ * @returns Promise resolving to highlight count
+ * 
+ * @example
+ * ```typescript
+ * const count = await highlightText('search term', '#ffff00');
+ * console.log(`Highlighted ${count} instances`);
+ * ```
+ * 
+ * @throws {Error} When DOM access is restricted
+ * @since 1.0.0
+ */
+async function highlightText(text: string, color: string = '#ffff00'): Promise<number> {
+  // Implementation
+}
+```
+
+## README Structure
+```markdown
+# Project Name
+
+Brief description and key features.
+
+## Installation
+Step-by-step setup instructions.
+
+## Usage
+Common use cases with examples.
+
+## API Reference
+Link to detailed API documentation.
+
+## Development
+- Setup instructions
+- Build process
+- Testing guidelines
+- Contributing guidelines
+
+## Architecture
+High-level system overview.
+
+## Security
+Security considerations and best practices.
+
+## Changelog
+Link to detailed changelog.
+
+## License
+License information.
+```
+
+## Living Documentation Principles
+- Keep documentation close to code
+- Update docs with every feature change
+- Include interactive examples where possible
+- Maintain versioned documentation
+- Use automated documentation generation
+
+## Quality Checklist
+- [ ] Clear, jargon-free language
+- [ ] Comprehensive examples
+- [ ] Up-to-date screenshots
+- [ ] Working code samples
+- [ ] Error scenarios documented
+- [ ] Performance characteristics noted
+- [ ] Security implications covered
+- [ ] Browser compatibility noted
+
+## Documentation Review Process
+1. Technical accuracy review
+2. Clarity and completeness check
+3. Example validation
+4. Link verification
+5. Accessibility compliance
+6. Multi-audience validation (developers, stakeholders, end-users)

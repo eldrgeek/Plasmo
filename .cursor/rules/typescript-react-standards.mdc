@@ -1,0 +1,87 @@
+---
+description: "TypeScript and React coding standards for Plasmo extension"
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# TypeScript & React Coding Standards
+
+## TypeScript Configuration
+- Use strict mode with all strictness flags enabled
+- Prefer `interface` over `type` for object shapes
+- Use proper generic constraints and utility types
+- Implement discriminated unions for complex state
+
+## React Patterns
+```typescript
+// Preferred component structure
+interface ComponentProps {
+  title: string;
+  onAction?: (data: ActionData) => void;
+}
+
+export function ComponentName({ title, onAction }: ComponentProps) {
+  const [state, setState] = useState<StateType>(initialState);
+  
+  // Event handlers
+  const handleEvent = useCallback((data: ActionData) => {
+    // Implementation
+    onAction?.(data);
+  }, [onAction]);
+  
+  // Effects
+  useEffect(() => {
+    // Setup and cleanup
+    return () => {
+      // Cleanup
+    };
+  }, [dependencies]);
+  
+  return (
+    <div className="component-container">
+      {/* JSX content */}
+    </div>
+  );
+}
+```
+
+## Chrome API Integration
+```typescript
+// Proper Chrome API usage with error handling
+const sendMessage = async (action: string, data?: unknown) => {
+  try {
+    const response = await chrome.runtime.sendMessage({ action, data });
+    if (chrome.runtime.lastError) {
+      throw new Error(chrome.runtime.lastError.message);
+    }
+    return response;
+  } catch (error) {
+    console.error('Message sending failed:', error);
+    throw error;
+  }
+};
+```
+
+## State Management
+- Use `useState` for local component state
+- Use `useReducer` for complex state logic
+- Implement custom hooks for shared logic
+- Use React Query or SWR for async data fetching
+
+## Code Organization
+- One component per file
+- Export components as named exports
+- Use barrel exports (index.ts) for directories
+- Group related functionality in custom hooks
+
+## Performance
+- Use `useCallback` and `useMemo` appropriately
+- Implement proper dependency arrays
+- Avoid inline object/function creation in render
+- Use React.memo for expensive components
+
+## CSS Integration
+- Use CSS modules or styled-components
+- Follow BEM naming convention for class names
+- Implement responsive design patterns
+- Use CSS custom properties for theming

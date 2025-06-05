@@ -1,0 +1,111 @@
+---
+description: "Project planning and agile development practices"
+globs: ["**/docs/**", "**/*.md", "**/planning/**", "**/stories/**"]
+alwaysApply: false
+---
+
+# Project Planning & Development Methodology
+
+## User Story Standards
+Follow INVEST criteria for all user stories:
+- **Independent**: Stories can be developed separately
+- **Negotiable**: Details can be discussed and refined
+- **Valuable**: Provides clear user value
+- **Estimable**: Can be sized appropriately
+- **Small**: Completed within one sprint
+- **Testable**: Clear acceptance criteria
+
+## Story Format
+```markdown
+## [Story ID] - [Brief Title]
+
+**As a** [persona]  
+**I want** [goal]  
+**So that** [benefit]
+
+### Acceptance Criteria
+- [ ] Given [context], when [action], then [outcome]
+- [ ] Given [context], when [action], then [outcome]
+- [ ] Given [context], when [action], then [outcome]
+
+### Technical Notes
+- API endpoints required
+- Database changes needed
+- Security considerations
+- Performance requirements
+
+### Definition of Done
+- [ ] Code implemented and reviewed
+- [ ] Unit tests written and passing
+- [ ] Integration tests passing
+- [ ] Documentation updated
+- [ ] Accessibility verified
+- [ ] Security review completed
+```
+
+## Sprint Planning Process
+1. **Sprint Goal Definition**: Clear, measurable objective
+2. **Capacity Planning**: Account for team availability
+3. **Story Prioritization**: Value-driven backlog ordering
+4. **Task Breakdown**: Stories decomposed to 4-8 hour tasks
+5. **Risk Assessment**: Identify and mitigate blockers
+
+## Chrome Extension Specific Planning
+- Consider Chrome Web Store review cycles (7-14 days)
+- Plan for Manifest V3 compliance updates
+- Account for cross-browser compatibility testing
+- Include security review for permissions
+
+## Development Workflow
+```
+1. Feature Branch Creation
+   ├── git checkout -b feature/STORY-ID-brief-description
+   
+2. Development Process
+   ├── Implement feature following TDD
+   ├── Write/update documentation
+   ├── Add/update tests
+   └── Manual testing in Chrome
+
+3. Code Review
+   ├── Create pull request with story context
+   ├── Include screenshots/demo for UI changes
+   ├── Verify all checks pass
+   └── Address review feedback
+
+4. Quality Assurance
+   ├── Test in multiple Chrome versions
+   ├── Verify extension permissions
+   ├── Test installation/update flow
+   └── Cross-platform validation
+
+5. Release Planning
+   ├── Version bump according to semver
+   ├── Update changelog
+   ├── Package for Chrome Web Store
+   └── Plan rollback strategy
+```
+
+## Technical Debt Management
+- Maintain technical debt backlog
+- Allocate 20% of sprint capacity to debt reduction
+- Regular architecture reviews
+- Dependency update cycles
+
+## Risk Management
+- **High**: Chrome API deprecations, store policy changes
+- **Medium**: Third-party dependency issues, performance degradation
+- **Low**: Minor UI/UX improvements, non-critical features
+
+## Stakeholder Communication
+- Weekly progress updates with screenshots
+- Monthly demo sessions
+- Quarterly architecture reviews
+- Regular user feedback collection
+
+## Metrics and KPIs
+- Sprint velocity and burndown
+- Code coverage trends
+- User adoption rates
+- Store review ratings
+- Performance metrics (load times, memory usage)

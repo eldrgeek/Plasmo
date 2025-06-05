@@ -1,0 +1,121 @@
+---
+description: "Testing strategy and implementation for Plasmo Chrome extension"
+globs: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/tests/**"]
+alwaysApply: false
+---
+
+# Testing Standards for Plasmo Extension
+
+## Testing Framework Setup
+- Use Jest as the primary testing framework
+- Implement React Testing Library for component testing
+- Use MSW (Mock Service Worker) for API mocking
+- Configure Chrome API mocks for extension testing
+
+## Test Structure and Organization
+```typescript
+// Component test structure
+describe('PopupComponent', () => {
+  const mockOnAction = jest.fn();
+  
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
+  it('should render with correct props', () => {
+    render(<PopupComponent title="Test" onAction={mockOnAction} />);
+    expect(screen.getByText('Test')).toBeInTheDocument();
+  });
+  
+  it('should handle user interactions', async () => {
+    const user = userEvent.setup();
+    render(<PopupComponent title="Test" onAction={mockOnAction} />);
+    
+    await user.click(screen.getByRole('button', { name: /action/i }));
+    expect(mockOnAction).toHaveBeenCalledWith(expectedData);
+  });
+});
+```
+
+## Chrome Extension Testing
+```typescript
+// Mock Chrome APIs
+const mockChrome = {
+  runtime: {
+    sendMessage: jest.fn(),
+    onMessage: {
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+    },
+  },
+  storage: {
+    sync: {
+      get: jest.fn(),
+      set: jest.fn(),
+    },
+  },
+};
+
+Object.assign(global, { chrome: mockChrome });
+```
+
+## Test Categories
+1. **Unit Tests**: Individual functions and hooks
+2. **Component Tests**: React component behavior
+3. **Integration Tests**: Message passing between extension parts
+4. **E2E Tests**: Full user workflows using Playwright
+
+## Testing Patterns
+- Test user behavior, not implementation details
+- Use descriptive test names that explain scenarios
+- Follow Given-When-Then structure
+- Mock external dependencies appropriately
+
+## Coverage Requirements
+- Maintain minimum 80% code coverage
+- Focus on critical path testing
+- Test error conditions and edge cases
+- Include accessibility testing with jest-axe
+
+## Test Data Management
+```typescript
+// Test fixtures and factories
+export const createMockExtensionData = (overrides = {}) => ({
+  title: 'Test Extension',
+  settings: {
+    notifications: true,
+    theme: 'light',
+  },
+  ...overrides,
+});
+```
+
+## Continuous Testing
+- Run tests on every commit (pre-commit hooks)
+- Include tests in CI/CD pipeline
+- Generate coverage reports
+- Test against multiple Chrome versions
+
+## Background Script Testing
+```typescript
+// Test background script functionality
+describe('Background Script', () => {
+  it('should handle installation events', () => {
+    const installationHandler = chrome.runtime.onInstalled.addListener.mock.calls[0][0];
+    
+    installationHandler({ reason: 'install' });
+    
+    expect(chrome.storage.sync.set).toHaveBeenCalledWith({
+      settings: expect.objectContaining({
+        notifications: true,
+      }),
+    });
+  });
+});
+```
+
+## Content Script Testing
+- Test DOM manipulation functions
+- Mock browser APIs appropriately
+- Test message handling between contexts
+- Verify injection and cleanup behavior

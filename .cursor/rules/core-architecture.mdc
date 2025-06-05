@@ -1,0 +1,47 @@
+---
+description: "Core architecture patterns for Plasmo Chrome extension development"
+globs: ["**/*.ts", "**/*.tsx", "background.ts", "contents/**/*"]
+alwaysApply: true
+---
+
+# Plasmo Chrome Extension Architecture Standards
+
+## Project Structure Requirements
+- Follow Plasmo framework conventions for file organization
+- Use TypeScript for all source files
+- Maintain clear separation between popup, background, content scripts, and options pages
+- Keep MCP server components isolated in dedicated files
+
+## Chrome Extension Patterns
+- Use Manifest V3 standards and APIs
+- Implement proper message passing between contexts (popup ↔ background ↔ content)
+- Handle async Chrome API calls with proper error handling
+- Use Chrome storage APIs for persistence, never localStorage in extension contexts
+
+## React Integration
+- Use functional components with hooks
+- Implement proper state management for popup and options pages
+- Follow React 18 patterns with concurrent features
+- Use TypeScript interfaces for all props and state
+
+## File Naming Conventions
+```
+popup.tsx          # Main popup component
+options.tsx        # Extension options page
+background.ts      # Service worker background script
+contents/          # Content scripts directory
+  main.ts          # Primary content script
+assets/           # Static assets (icons, images)
+```
+
+## Import Standards
+- Use relative imports for local modules
+- Import types with `import type` syntax
+- Group imports: React/external libraries first, then local imports
+- Use destructuring for named imports
+
+## Error Handling
+- Wrap Chrome API calls in try-catch blocks
+- Implement fallback behavior for missing permissions
+- Log errors appropriately for debugging
+- Use TypeScript strict mode for compile-time error prevention
