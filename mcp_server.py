@@ -687,69 +687,129 @@ def execute_javascript(code: str, tab_id: str, connection_id: str = "localhost:9
         
         # Use WebSocket to execute JavaScript
         import websocket
+        import time
         
         ws = websocket.create_connection(ws_url, timeout=10)
         
-        # Enable Runtime domain
-        ws.send(json.dumps({'id': 1, 'method': 'Runtime.enable'}))
-        enable_result = ws.recv()
-        
-        # Execute the JavaScript code
-        ws.send(json.dumps({
-            'id': 2, 
-            'method': 'Runtime.evaluate', 
-            'params': {
-                'expression': code,
-                'returnByValue': True
-            }
-        }))
-        
-        execution_result = ws.recv()
-        ws.close()
-        
-        # Parse the result
-        result_data = json.loads(execution_result)
-        
-        if result_data.get("id") == 2 and "result" in result_data:
-            execution_data = result_data["result"]
+        try:
+            # Enable Runtime domain
+            ws.send(json.dumps({'id': 1, 'method': 'Runtime.enable'}))
             
-            # Clean the result to be JSON-safe
-            clean_result = {}
-            if execution_data and "result" in execution_data:
-                result_obj = execution_data["result"]
-                clean_result = {
-                    "type": str(result_obj.get("type", "")),
-                    "value": make_json_safe(result_obj.get("value")),
-                    "description": str(result_obj.get("description", "")) if result_obj.get("description") else None
-                }
+            # Read messages until we get the Runtime.enable response
+            enable_response_received = False
+            max_attempts = 10
+            for attempt in range(max_attempts):
+                try:
+                    enable_result = ws.recv()
+                    enable_data = json.loads(enable_result)
+                    
+                    # Check if this is the response to our Runtime.enable command
+                    if enable_data.get("id") == 1:
+                        enable_response_received = True
+                        break
+                    # If it's an event (no id), just continue reading
+                    elif "method" in enable_data:
+                        continue
+                    
+                except Exception as recv_error:
+                    time.sleep(0.1)  # Brief delay before retry
+                    continue
             
-            # Check for exceptions
-            exception_details = execution_data.get("exceptionDetails")
-            if exception_details:
+            if not enable_response_received:
                 return {
                     "success": False,
-                    "error": str(exception_details.get("text", "JavaScript execution failed")),
-                    "exception": make_json_safe(exception_details),
+                    "error": "Failed to enable Runtime domain",
                     "tab_id": str(tab_id),
                     "connection_id": str(connection_id)
                 }
             
-            return {
-                "success": True,
-                "result": clean_result,
-                "tab_id": str(tab_id),
-                "connection_id": str(connection_id),
-                "tab_title": str(tab_info.get("title", "")),
-                "tab_type": str(tab_info.get("type", ""))
-            }
-        else:
-            return {
-                "success": False,
-                "error": "Unexpected response format",
-                "raw_response": make_json_safe(result_data),
-                "tab_id": str(tab_id),
-                "connection_id": str(connection_id)
-            }
+            # Execute the JavaScript code
+            ws.send(json.dumps({
+                'id': 2, 
+                'method': 'Runtime.evaluate', 
+                'params': {
+                    'expression': code,
+                    'returnByValue': True,
+                    'awaitPromise': True  # Handle async results
+                }
+            }))
+            
+            # Read messages until we get the Runtime.evaluate response
+            execution_result = None
+            max_attempts = 20  # Increase attempts for execution
+            for attempt in range(max_attempts):
+                try:
+                    result_msg = ws.recv()
+                    result_data = json.loads(result_msg)
+                    
+                    # Check if this is the response to our Runtime.evaluate command
+                    if result_data.get("id") == 2:
+                        execution_result = result_data
+                        break
+                    # If it's an event or other message, continue reading
+                    elif "method" in result_data:
+                        continue
+                    
+                except Exception as recv_error:
+                    time.sleep(0.1)  # Brief delay before retry
+                    continue
+            
+            if not execution_result:
+                return {
+                    "success": False,
+                    "error": "No response received for JavaScript execution",
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
+            
+            # Parse the execution result
+            if "result" in execution_result:
+                execution_data = execution_result["result"]
+                
+                # Check for exceptions first
+                exception_details = execution_data.get("exceptionDetails")
+                if exception_details:
+                    return {
+                        "success": False,
+                        "error": str(exception_details.get("text", "JavaScript execution failed")),
+                        "exception": make_json_safe(exception_details),
+                        "tab_id": str(tab_id),
+                        "connection_id": str(connection_id)
+                    }
+                
+                # Clean the result to be JSON-safe
+                clean_result = {}
+                if execution_data and "result" in execution_data:
+                    result_obj = execution_data["result"]
+                    clean_result = {
+                        "type": str(result_obj.get("type", "")),
+                        "value": make_json_safe(result_obj.get("value")),
+                        "description": str(result_obj.get("description", "")) if result_obj.get("description") else None
+                    }
+                
+                return {
+                    "success": True,
+                    "result": clean_result,
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id),
+                    "tab_title": str(tab_info.get("title", "")),
+                    "tab_type": str(tab_info.get("type", ""))
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Unexpected response format",
+                    "raw_response": make_json_safe(execution_result),
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
+        
+        finally:
+            # Always close the WebSocket connection
+            try:
+                ws.close()
+            except:
+                pass
         
     except Exception as e:
         return {
@@ -778,45 +838,160 @@ def set_breakpoint(url: str, line_number: int, tab_id: str, connection_id: str =
         if connection_id not in chrome_instances:
             return {"error": "Not connected to Chrome. Use connect_to_chrome first."}
         
-        browser = chrome_instances[connection_id]
-        tab = browser.get_tab(tab_id)
+        # Extract host and port from connection_id
+        host, port = connection_id.split(":")
         
-        # Enable Debugger domain
-        tab.Debugger.enable()
+        # Get tab information
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        tabs_data = response.json()
         
-        # Set breakpoint
-        if condition:
-            result = tab.Debugger.setBreakpointByUrl(
-                lineNumber=line_number,
-                url=url,
-                condition=condition
-            )
-        else:
-            result = tab.Debugger.setBreakpointByUrl(
-                lineNumber=line_number,
-                url=url
-            )
+        tab_info = None
+        for tab_data in tabs_data:
+            if tab_data.get("id") == tab_id:
+                tab_info = tab_data
+                break
         
-        # Clean the result
-        actual_location = result.get("actualLocation", {})
-        clean_location = {}
-        if actual_location:
-            clean_location = {
-                "lineNumber": int(actual_location.get("lineNumber", line_number)),
-                "columnNumber": int(actual_location.get("columnNumber", 0)),
-                "scriptId": str(actual_location.get("scriptId", ""))
+        if not tab_info:
+            return {"error": f"Tab with ID {tab_id} not found"}
+        
+        # Get the WebSocket URL
+        ws_url = tab_info.get("webSocketDebuggerUrl")
+        if not ws_url:
+            return {"error": f"No WebSocket URL available for tab {tab_id}"}
+        
+        # Use WebSocket to set breakpoint
+        import websocket
+        import time
+        
+        ws = websocket.create_connection(ws_url, timeout=10)
+        
+        try:
+            # Enable Debugger domain
+            ws.send(json.dumps({'id': 1, 'method': 'Debugger.enable'}))
+            
+            # Read messages until we get the Debugger.enable response
+            enable_response_received = False
+            max_attempts = 10
+            for attempt in range(max_attempts):
+                try:
+                    enable_result = ws.recv()
+                    enable_data = json.loads(enable_result)
+                    
+                    # Check if this is the response to our Debugger.enable command
+                    if enable_data.get("id") == 1:
+                        enable_response_received = True
+                        break
+                    # If it's an event (no id), just continue reading
+                    elif "method" in enable_data:
+                        continue
+                    
+                except Exception as recv_error:
+                    time.sleep(0.1)  # Brief delay before retry
+                    continue
+            
+            if not enable_response_received:
+                return {
+                    "success": False,
+                    "error": "Failed to enable Debugger domain",
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
+            
+            # Set breakpoint
+            breakpoint_params = {
+                'lineNumber': line_number,
+                'url': url
             }
+            if condition:
+                breakpoint_params['condition'] = condition
+            
+            ws.send(json.dumps({
+                'id': 2, 
+                'method': 'Debugger.setBreakpointByUrl', 
+                'params': breakpoint_params
+            }))
+            
+            # Read messages until we get the Debugger.setBreakpointByUrl response
+            breakpoint_result = None
+            max_attempts = 20
+            for attempt in range(max_attempts):
+                try:
+                    result_msg = ws.recv()
+                    result_data = json.loads(result_msg)
+                    
+                    # Check if this is the response to our Debugger.setBreakpointByUrl command
+                    if result_data.get("id") == 2:
+                        breakpoint_result = result_data
+                        break
+                    # If it's an event or other message, continue reading
+                    elif "method" in result_data:
+                        continue
+                    
+                except Exception as recv_error:
+                    time.sleep(0.1)  # Brief delay before retry
+                    continue
+            
+            if not breakpoint_result:
+                return {
+                    "success": False,
+                    "error": "No response received for breakpoint setting",
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
+            
+            # Parse the breakpoint result
+            if "result" in breakpoint_result:
+                result = breakpoint_result["result"]
+                
+                # Check for errors
+                if "error" in breakpoint_result:
+                    return {
+                        "success": False,
+                        "error": str(breakpoint_result["error"].get("message", "Breakpoint setting failed")),
+                        "url": str(url),
+                        "line_number": int(line_number),
+                        "tab_id": str(tab_id),
+                        "connection_id": str(connection_id)
+                    }
+                
+                # Clean the result
+                actual_location = result.get("actualLocation", {})
+                clean_location = {}
+                if actual_location:
+                    clean_location = {
+                        "lineNumber": int(actual_location.get("lineNumber", line_number)),
+                        "columnNumber": int(actual_location.get("columnNumber", 0)),
+                        "scriptId": str(actual_location.get("scriptId", ""))
+                    }
+                
+                return {
+                    "success": True,
+                    "breakpoint_id": str(result.get("breakpointId", "")),
+                    "actual_location": clean_location,
+                    "url": str(url),
+                    "line_number": int(line_number),
+                    "condition": str(condition) if condition else None,
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Unexpected response format",
+                    "raw_response": make_json_safe(breakpoint_result),
+                    "url": str(url),
+                    "line_number": int(line_number),
+                    "tab_id": str(tab_id),
+                    "connection_id": str(connection_id)
+                }
         
-        return {
-            "success": True,
-            "breakpoint_id": str(result.get("breakpointId", "")),
-            "actual_location": clean_location,
-            "url": str(url),
-            "line_number": int(line_number),
-            "condition": str(condition) if condition else None,
-            "tab_id": str(tab_id),
-            "connection_id": str(connection_id)
-        }
+        finally:
+            # Always close the WebSocket connection
+            try:
+                ws.close()
+            except:
+                pass
+        
     except Exception as e:
         return {
             "success": False,
@@ -1053,7 +1228,7 @@ Use launch_chrome_debug() to start Chrome with debugging enabled
 
 To integrate with Cursor:
 1. Open Cursor settings (Cmd/Ctrl + ,)
-2. Search for "mcp" or "Model Context Protocol"
+2. Search for "mcp" 
 3. Add this configuration:
 
 {{

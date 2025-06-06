@@ -3,8 +3,50 @@ description: "MCP server development and integration standards"
 globs: ["**/*mcp*.py", "**/*mcp*.ts", "**/*mcp*.js", "**/mcp_server.py"]
 alwaysApply: false
 ---
-
 # MCP Server Development Standards
+
+## Development Workflow - CRITICAL CONSTRAINTS
+
+### ⚠️ Server Code Changes Require Restart
+**IMPORTANT**: After modifying MCP server code (mcp_server.py), the server must be restarted and reconnected before testing changes:
+
+1. **Stop current server** (Ctrl+C or kill process)
+2. **Restart server** with your changes
+3. **Reconnect Cursor** (restart Cursor or wait for automatic reconnection)
+4. **Only then can you test** the modified tools
+
+**Why**: MCP servers run as separate processes. Code changes don't take effect until the server process is restarted and the client (Cursor) reconnects to the new process.
+
+### Development Testing Workflow
+```bash
+# 1. Make changes to mcp_server.py
+# 2. Stop server (if running)
+pkill -f "mcp_server.py"
+
+# 3. Restart server with changes
+python3 mcp_server.py --port 8001  # Use different port if needed
+
+# 4. Verify server is running
+curl -s "http://127.0.0.1:8001/mcp" | head -5
+
+# 5. Test tools ONLY after restart+reconnection
+```
+
+### Cursor Integration Workflow
+- **HTTP Mode**: Cursor will auto-reconnect when server restarts on same port
+- **STDIO Mode**: Must restart Cursor completely after server changes
+- **Debug Mode**: Use different ports during development to avoid conflicts
+- **Validation**: Always verify tool availability before testing changes
+
+### Common Development Mistakes to Avoid
+❌ **Don't**: Try to test tools immediately after editing server code  
+✅ **Do**: Always restart server and wait for reconnection  
+
+❌ **Don't**: Assume tool failures are code bugs without restarting server first  
+✅ **Do**: Restart server as first debugging step  
+
+❌ **Don't**: Edit server code while tools are actively being tested  
+✅ **Do**: Finish testing, then edit, then restart cycle  
 
 ## FastMCP Implementation Patterns
 Follow these patterns for consistent MCP server development:
