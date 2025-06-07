@@ -882,7 +882,9 @@ async def send_chrome_command_async(ws_url: str, command: str, params: Dict = No
     Returns:
         Command response or error information
     """
-    request_id = int(time.time() * 1000000) % 1000000  # Generate integer ID from timestamp
+    # CRITICAL: Chrome Debug Protocol requires INTEGER request IDs, not strings
+    # String IDs cause error: "Message must have integer 'id' property"
+    request_id = int(time.time() * 1000000) % 1000000  # Generate unique integer ID from timestamp
     message = {
         "id": request_id,
         "method": command,

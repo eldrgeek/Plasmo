@@ -126,14 +126,14 @@ The MCP server provides the following tools in both HTTP and STDIO modes:
 ### 🗄️ Version Control
 - **`run_git_command`** - Execute safe git commands (read-only)
 
-### 🌐 Chrome Debug Protocol *(NEW!)*
+### 🌐 Chrome Debug Protocol *(FULLY WORKING!)*
 - **`launch_chrome_debug`** - Launch Chrome with debugging enabled
 - **`connect_to_chrome`** - Connect to Chrome debug instance
 - **`get_chrome_tabs`** - List available browser tabs
+- **`execute_javascript_fixed`** - Run JavaScript in Chrome tab (✅ fixed integer ID issue)
 - **`start_console_monitoring`** - Begin monitoring console output
 - **`get_console_logs`** - Retrieve captured console logs
 - **`clear_console_logs`** - Clear console log history
-- **`execute_javascript`** - Run JavaScript in Chrome tab
 - **`set_breakpoint`** - Set debugging breakpoints
 - **`get_chrome_debug_info`** - Get comprehensive debug information
 

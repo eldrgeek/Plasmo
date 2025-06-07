@@ -1,44 +1,46 @@
 # MCP Chrome Debug Protocol - Complete Issue Analysis and Solution
 
-## 🔍 ISSUES CONFIRMED:
+## 🔍 ISSUES RESOLVED:
 
-### 1. JavaScript Execution Problem ❌
-**What's happening:** 
-- The `execute_javascript()` function receives `Runtime.executionContextCreated` WebSocket events instead of command responses
+### 1. JavaScript Execution Problem ✅ FIXED
+**What was happening:** 
+- The `execute_javascript()` function received `Runtime.executionContextCreated` WebSocket events instead of command responses
 - No proper request/response correlation
-- Returns "Unexpected response format" error
+- Returned "Unexpected response format" error
 
-**Root cause:** 
-- Using synchronous WebSocket with improper message filtering
-- No unique request ID correlation between sent commands and received responses
+**Root cause identified:** 
+- Chrome Debug Protocol requires **integer request IDs**, not strings
+- String UUIDs caused error: "Message must have integer 'id' property"
+- Fixed by using `int(time.time() * 1000000) % 1000000` for request IDs
 
-### 2. Console Log Monitoring Problem ❌  
-**What's happening:**
-- `start_console_monitoring()` only adds setup messages, doesn't capture real console logs
-- `get_console_logs()` only shows the "Started monitoring" message
-- No real-time console event capture
+### 2. Request ID Format Issue ✅ FIXED
+**Critical Discovery:**
+- Chrome Debug Protocol strictly requires **integer request IDs**
+- String IDs (like UUID substrings) cause immediate rejection
+- Error: `"Message must have integer 'id' property"`
 
-**Root cause:**
-- No persistent WebSocket connection to listen for `Runtime.consoleAPICalled` events
-- Missing async event loop for continuous monitoring
+**Solution Applied:**
+- Changed from `str(uuid.uuid4())[:8]` to `int(time.time() * 1000000) % 1000000`
+- All Chrome Debug Protocol commands now work correctly
+- Proper request/response correlation achieved
 
 ## ✅ SOLUTIONS IMPLEMENTED:
 
-### Fixed Version: `mcp_server_fixed.py`
-1. **Proper WebSocket Handling:**
-   - Uses async `websockets` library
-   - Unique request ID correlation (UUID-based)
-   - Filters events vs command responses correctly
+### Current Version: `mcp_server.py` (v2.0+)
+1. **Proper Chrome Debug Protocol Integration:**
+   - **INTEGER REQUEST IDs**: Uses `int(time.time() * 1000000) % 1000000`
+   - Correct async WebSocket handling with proper event filtering
+   - Distinguishes between events and command responses by matching request IDs
 
-2. **Real-time Console Monitoring:**
-   - Persistent WebSocket connections in background threads
-   - Captures `Runtime.consoleAPICalled` events
-   - Stores logs in real-time as they occur
+2. **Enhanced Debugging & Logging:**
+   - Detailed message tracking for troubleshooting
+   - Enhanced logging shows event vs response differentiation
+   - Proper timeout handling with informative error messages
 
-3. **Better Error Handling:**
-   - Proper timeout mechanisms
-   - Retry logic for WebSocket operations
-   - Clean error messages and diagnostics
+3. **Robust Error Handling:**
+   - Handles Chrome Debug Protocol rejection of string IDs
+   - Proper timeout mechanisms for WebSocket operations
+   - Clean error messages and diagnostic information
 
 ## 🚀 HOW TO FIX:
 

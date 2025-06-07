@@ -16,6 +16,8 @@ This is a Plasmo browser extension project with an integrated MCP (Model Context
 - Always ensure return values from MCP tools are JSON-serializable (no complex objects)
 - Use `make_json_safe()` helper for converting objects to basic types
 - Handle Chrome Debug Protocol WebSocket connections carefully
+- **CRITICAL: Chrome Debug Protocol requires INTEGER request IDs, not strings**
+- Use `int(time.time() * 1000000) % 1000000` for Chrome Debug Protocol request IDs
 - Test Chrome flag compatibility when adding new debugging features
 - Remember that extension service worker IDs change on Chrome restart
 
@@ -52,5 +54,6 @@ This is a Plasmo browser extension project with an integrated MCP (Model Context
 ## Common Issues & Solutions
 - **Serialization errors**: Convert objects to dict/list/string before returning
 - **WebSocket 403 errors**: Ensure `--remote-allow-origins=*` flag is set
+- **Chrome Debug Protocol "integer id" error**: Use integer request IDs, not strings
 - **Extension not found**: Check service worker is running and ID is current
 - **MCP tools not available**: Restart Cursor after server changes 
