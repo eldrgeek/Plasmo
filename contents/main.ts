@@ -5,6 +5,9 @@ export const config: PlasmoCSConfig = {
   all_frames: true
 }
 
+// IMMEDIATE TEST - This should run right away if the script loads
+console.log("🚨 CONTENT SCRIPT LOADING - TEST MESSAGE");
+
 // Console log interception setup
 const logArray: string[] = [];
 const originalConsoleLog = console.log;
@@ -33,6 +36,26 @@ console.log = function(...args: any[]) {
   return logArray.length;
 };
 
+// Simple direct assignment to window since we're in MAIN world context
+// (window as any).lex = function(...args: any[]) {
+//   // Route directly through the extension's overridden console.log
+//   console.log(...args);
+// };
+
+console.log("🔧 Use Ctrl+Shift+R to reset logs, Ctrl+Shift+C to get count");
+
+console.log("Content script loaded on:", window.location.href)
+
+// Debug: Check which context we're running in
+console.log("🔍 CONTEXT DEBUG:", {
+  hasChrome: typeof chrome !== 'undefined',
+  hasWindow: typeof window !== 'undefined',
+  worldContext: window === globalThis ? 'MAIN' : 'ISOLATED',
+  chromeRuntime: typeof chrome?.runtime !== 'undefined'
+});
+
+// console.log("✅ Extension lex function ready! Use: window.lex('your message')");
+
 // Add keyboard shortcuts for log management (Ctrl+Shift+R for reset, Ctrl+Shift+C for count)
 document.addEventListener('keydown', (event) => {
   if (event.ctrlKey && event.shiftKey) {
@@ -46,10 +69,6 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
-
-console.log("🔧 Use Ctrl+Shift+R to reset logs, Ctrl+Shift+C to get count");
-
-console.log("Content script loaded on:", window.location.href)
 
 // Enhanced debugging for textarea behavior
 const debugTextareaEvents = () => {
@@ -250,7 +269,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Add a floating button to demonstrate content script capabilities
 const createFloatingButton = () => {
-  const button = document.createElement("button")
+  const button = document.createElement("button") as HTMLButtonElement & { b: (a: any) => void };
   button.textContent = "🚀"
   button.style.cssText = `
     position: fixed;
@@ -285,14 +304,21 @@ const createFloatingButton = () => {
     })
   })
 
+  // Add function directly to the button element
+  button.b = (a: any) => console.log(a);
+
   document.body.appendChild(button)
+
+  // Test the button function from the extension
+  button.b("🧪 from the extension - button.b() works!");
+  console.log("✅ Button function attached! Try: document.querySelector('button[style*=\"position: fixed\"]').b('your message')");
 }
 
 // Enhanced DOM monitoring
 const observer = new MutationObserver((mutations) => {
   mutations.forEach((mutation) => {
     if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-      console.log("📄 Page content changed")
+      originalConsoleLog.call(console, "📄 Page content changed")
       
       // Check if any textareas were added
       mutation.addedNodes.forEach((node) => {
