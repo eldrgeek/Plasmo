@@ -13,6 +13,8 @@ This project integrates multiple AI-powered tools and agents to enhance the deve
 - Chrome Debug Protocol integration
 - Console log monitoring and analysis
 - Extension auto-reload management
+- **NEW**: Continuous testing automation with file watching
+- **NEW**: Multi-service coordination and health monitoring
 
 **MCP Tools Available**:
 - `connect_to_chrome()` - Establish debugging connection
@@ -20,7 +22,7 @@ This project integrates multiple AI-powered tools and agents to enhance the deve
 - `get_chrome_debug_info()` - Comprehensive debug status
 - `start_console_monitoring(tab_id)` - Begin log capture
 - `get_console_logs()` - Retrieve captured logs
-- `execute_javascript(code, tab_id)` - Run code in browser context
+- `execute_javascript_fixed(code, tab_id)` - **Enhanced** reliable JavaScript execution with WebSocket filtering
 - `set_breakpoint(url, line, tab_id)` - Set debugging breakpoints
 - `launch_chrome_debug()` - Start Chrome with debugging enabled
 
@@ -44,6 +46,56 @@ This project integrates multiple AI-powered tools and agents to enhance the deve
 - Debug port: `9222`
 - Required flags: `--remote-debugging-port=9222 --remote-allow-origins=*`
 - Launch script: `./launch-chrome-debug.sh`
+
+### 4. Continuous Testing System **[NEW]**
+**Purpose**: Automated test execution triggered by file changes
+**Location**: `continuous_test_runner.py`
+**Integration**: SocketIO server + Chrome Debug Protocol
+
+**Key Features**:
+- **File Monitoring**: Watches `.ts`, `.tsx`, `.js`, `.jsx`, `.html`, `.css`, `.py` files
+- **Auto-Test Execution**: Triggers tests via CDP when files change
+- **Real-time Results**: Sends test outcomes to SocketIO API
+- **WebSocket Filtering**: Handles Chrome extension message noise
+- **DevTools Conflict Resolution**: Ensures clean CDP environment
+
+**Test Triggers**:
+```python
+# File patterns that trigger testing
+WATCH_PATTERNS = [
+    "*.ts", "*.tsx", "*.js", "*.jsx",  # JavaScript/TypeScript changes
+    "*.html", "*.css",                  # UI changes  
+    "*.py"                             # Backend changes
+]
+
+# Test commands executed via CDP
+TEST_COMMANDS = {
+    'frontend': 'await window.testRunner.run()',
+    'ui': 'await window.validateUI()',
+    'backend': 'await window.testBackendIntegration()'
+}
+```
+
+### 5. Service Orchestration System **[NEW]**
+**Purpose**: Coordinated management of development services
+**Services**: MCP Server + SocketIO Server + Plasmo Dev + Continuous Testing
+**Configuration**: `.vscode/tasks.json` with auto-start on workspace open
+
+**Service Architecture**:
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   MCP Server    │    │ SocketIO Server │    │   Plasmo Dev    │
+│   Port: 8000    │    │   Port: 3001    │    │  Auto-reload    │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │ Continuous Test │
+                    │    Runner       │
+                    │  File Watcher   │
+                    └─────────────────┘
+```
 
 ## Workflow Integration
 
@@ -122,6 +174,71 @@ The AI assistant can:
 - Performance metric collection through debug tools
 - Regression testing through Chrome automation
 
+## Critical Learnings & Best Practices **[NEW]**
+
+### WebSocket Message Filtering
+**Problem**: Chrome extensions flood CDP WebSocket with contextual messages, causing command timeouts
+**Solution**: Filter messages by command ID and ignore extension noise
+
+```python
+# CRITICAL: Use command-specific message filtering
+async def execute_reliable_cdp(websocket, command):
+    command_id = int(time.time() * 1000)  # Unique ID
+    command['id'] = command_id
+    
+    # Send command
+    await websocket.send(json.dumps(command))
+    
+    # Listen ONLY for our command response
+    while True:
+        message = await websocket.recv()
+        data = json.loads(message)
+        
+        # IGNORE extension noise - only process our command
+        if data.get('id') == command_id:
+            return data.get('result')
+        # Continue listening, ignore other messages
+```
+
+### DevTools Interference Prevention
+**Problem**: DevTools open on same tab blocks external CDP operations
+**Solution**: Always check and close DevTools before CDP automation
+
+```python
+# CRITICAL: Ensure DevTools is closed before CDP operations
+def ensure_clean_cdp_environment(tab_id):
+    """
+    DevTools and external CDP cannot operate on same tab simultaneously.
+    Must close DevTools before running automated tests.
+    """
+    # Check if DevTools is attached
+    # Close DevTools if open
+    # Wait for clean state
+    # Proceed with CDP operations
+```
+
+### Extension Context Noise Patterns
+Common extension events that flood WebSocket (IGNORE these):
+- `Runtime.executionContextCreated`
+- `Runtime.executionContextDestroyed`
+- `Page.frameNavigated`
+- `Network.requestWillBeSent`
+- `Network.responseReceived`
+
+### Continuous Testing Integration
+**Workflow**: File change → Test trigger → CDP execution → Real-time results
+```
+File Watcher → Debounce → CDP Test → SocketIO API → Web UI Update
+```
+
+**Test Execution Pattern**:
+1. File change detected
+2. Wait for debounce period (1-3 seconds)
+3. Ensure clean CDP environment (close DevTools)
+4. Execute test command via filtered WebSocket
+5. Parse results and send to SocketIO API
+6. Update real-time web interface
+
 ## Troubleshooting
 
 ### Common Issues
@@ -129,20 +246,44 @@ The AI assistant can:
 - **Chrome debug unavailable**: Verify Chrome launched with debug flags
 - **Extension not found**: Ensure extension is loaded and service worker is active
 - **WebSocket errors**: Check `--remote-allow-origins=*` flag is set
+- **🆕 CDP command timeouts**: Ensure message filtering by command ID is implemented
+- **🆕 "Failed to enable Runtime domain"**: Close DevTools on target tab before CDP operations
+- **🆕 Extension message noise**: Filter WebSocket messages, ignore extension context events
+- **🆕 Test runner not triggering**: Check file watcher patterns and service dependencies
 
-### Debug Commands
+### Advanced Debugging
 ```bash
-# Start MCP server
-./start_mcp.sh
+# Check WebSocket message flow (shows extension noise)
+curl -N -H "Connection: Upgrade" -H "Upgrade: websocket" ws://localhost:9222/devtools/page/[TAB_ID]
 
-# Launch Chrome with debugging
-./launch-chrome-debug.sh
+# Verify all services are running
+./check_services.sh
 
-# Check server status
-curl http://127.0.0.1:8000/health
+# Monitor continuous testing logs
+tail -f logs/continuous_testing.log
 
-# View logs
-tail -f mcp_server.log
+# Test CDP connection manually
+python3 quick_cdp_test.py
+
+# Check service health endpoints
+curl http://localhost:8000/health  # MCP Server
+curl http://localhost:3001/api/status  # SocketIO Server
 ```
 
-This integration provides a powerful development environment where AI assistants have direct access to browser debugging capabilities, enabling sophisticated extension development and troubleshooting workflows. 
+### Service Coordination Issues
+```bash
+# If services fail to start in correct order
+./stop_all_services.sh
+sleep 2
+./start_all_services.sh
+
+# Check service dependencies
+./check_services.sh
+
+# View service startup logs
+tail -f logs/mcp_server.log
+tail -f logs/socketio_server.log  
+tail -f logs/continuous_testing.log
+```
+
+This integration provides a powerful development environment where AI assistants have direct access to browser debugging capabilities, enabling sophisticated extension development and troubleshooting workflows. ./

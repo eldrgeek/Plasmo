@@ -117,4 +117,3 @@ test_cdp_*.py
 foo.txt
 hello_world.py
 *.backup
-plasmo_repository_context.txt
