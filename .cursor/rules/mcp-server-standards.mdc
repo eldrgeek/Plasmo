@@ -316,7 +316,7 @@ When using the MCP server in any conversation, the AI assistant must be aware of
 // Include in every MCP-related conversation:
 interface MCPServerContext {
   version: "2.0.0";
-  serverFile: "mcp_server_consolidated.py";
+  serverFile: "mcp_server.py";
   capabilities: string[];
   securityFeatures: string[];
   chromeDebugging: boolean;

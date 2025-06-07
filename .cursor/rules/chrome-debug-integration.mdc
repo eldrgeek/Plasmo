@@ -3,7 +3,6 @@ description: "Chrome Debug Protocol integration for automated debugging workflow
 globs: ["**/*.ts", "**/*.tsx", "background.ts", "contents/**/*"]
 alwaysApply: false
 ---
-
 # Chrome Debug Protocol Integration Standards
 
 ## Automated Debugging Workflows
@@ -272,3 +271,235 @@ const handleDebugFailure = async (error: Error) => {
 - Generate hypothesis-driven debug plans
 - Continuously learn from debug session outcomes
 - Integrate with code review feedback for preventive debugging
+
+## CDP WebSocket Message Handling (Critical Patterns)
+```typescript
+// CRITICAL: Proper CDP WebSocket message handling
+// Issue discovered: Extension events flood the WebSocket connection
+// Solution: Filter messages by command ID and handle async responses properly
+
+const properCDPConnection = async (tabId: string) => {
+  const ws = await connectToTab(tabId);
+  
+  // Helper function to wait for specific command responses
+  const sendCommandAndWait = async (commandId: number, method: string, params?: any) => {
+    const message = { id: commandId, method, params: params || {} };
+    await ws.send(JSON.stringify(message));
+    
+    // CRITICAL: Must wait for specific command ID, not first message
+    while (true) {
+      const response = await ws.recv();
+      const data = JSON.parse(response);
+      
+      // Return only our command response
+      if (data.id === commandId) {
+        return data;
+      }
+      
+      // Filter out extension events (very common)
+      if (data.method && data.method.includes('Runtime.executionContextCreated')) {
+        continue; // Chrome extensions create many contexts
+      }
+      
+      if (data.method && data.method.includes('Runtime.consoleAPICalled')) {
+        continue; // Extension console logs
+      }
+    }
+  };
+  
+  return { sendCommandAndWait, ws };
+};
+
+// IMPORTANT: DevTools interference pattern
+// ISSUE: Having Chrome DevTools open on the same tab interferes with external CDP
+// SOLUTION: Close DevTools before external CDP automation
+const ensureCleanCDPEnvironment = async (tabId: string) => {
+  // Check if DevTools is open on target tab
+  const tabs = await getChromeTabs();
+  const devToolsTab = tabs.find(tab => 
+    tab.url.includes('devtools://') && tab.url.includes(tabId)
+  );
+  
+  if (devToolsTab) {
+    console.warn('⚠️  DevTools open on target tab - may interfere with CDP');
+    // Request user to close DevTools
+    return false;
+  }
+  
+  return true;
+};
+```
+
+## Test Automation via CDP (Working Patterns)
+```typescript
+// Pattern discovered: Running existing test frameworks via CDP
+const runTestsViaCDP = async (tabId: string) => {
+  const { sendCommandAndWait } = await properCDPConnection(tabId);
+  
+  // 1. Enable Runtime domain
+  await sendCommandAndWait(1, 'Runtime.enable');
+  
+  // 2. Check for existing test framework
+  const testFrameworkCheck = await sendCommandAndWait(2, 'Runtime.evaluate', {
+    expression: 'typeof window.testRunner',
+    returnByValue: true
+  });
+  
+  if (testFrameworkCheck.result.result.value === 'object') {
+    // 3. Execute test suite
+    const testResults = await sendCommandAndWait(3, 'Runtime.evaluate', {
+      expression: `
+        (async () => {
+          const results = await window.testRunner.run();
+          return {
+            total: results.length,
+            passed: results.filter(r => r.status === 'PASS').length,
+            failed: results.filter(r => r.status === 'FAIL').length
+          };
+        })()
+      `,
+      awaitPromise: true,
+      returnByValue: true
+    });
+    
+    return testResults.result.result.value;
+  }
+  
+  return null;
+};
+
+// Custom test injection pattern
+const injectAndRunCustomTests = async (tabId: string, tests: TestDefinition[]) => {
+  const { sendCommandAndWait } = await properCDPConnection(tabId);
+  
+  // Inject test framework if needed
+  await sendCommandAndWait(1, 'Runtime.evaluate', {
+    expression: `
+      if (!window.cdpTestRunner) {
+        window.cdpTestRunner = {
+          tests: [],
+          run: async function() {
+            const results = [];
+            for (const test of this.tests) {
+              try {
+                await test.fn();
+                results.push({name: test.name, status: 'PASS'});
+              } catch(e) {
+                results.push({name: test.name, status: 'FAIL', error: e.message});
+              }
+            }
+            return results;
+          }
+        };
+      }
+    `
+  });
+  
+  // Add tests dynamically
+  for (const test of tests) {
+    await sendCommandAndWait(2, 'Runtime.evaluate', {
+      expression: `
+        window.cdpTestRunner.tests.push({
+          name: "${test.name}",
+          fn: ${test.function.toString()}
+        });
+      `
+    });
+  }
+  
+  // Execute all tests
+  return await sendCommandAndWait(3, 'Runtime.evaluate', {
+    expression: 'window.cdpTestRunner.run()',
+    awaitPromise: true,
+    returnByValue: true
+  });
+};
+```
+
+## Extension Context Management
+```typescript
+// Handle multiple Chrome extension contexts in single tab
+const manageExtensionContexts = async (tabId: string) => {
+  const { ws } = await properCDPConnection(tabId);
+  
+  const contexts = new Map();
+  
+  // Listen for context creation events
+  ws.onMessage((message) => {
+    const data = JSON.parse(message);
+    
+    if (data.method === 'Runtime.executionContextCreated') {
+      const context = data.params.context;
+      
+      if (context.origin.startsWith('chrome-extension://')) {
+        contexts.set(context.id, {
+          extensionId: context.origin.split('//')[1],
+          name: context.name,
+          type: context.auxData.type
+        });
+      }
+    }
+  });
+  
+  return contexts;
+};
+
+// Target specific execution context
+const executeInMainContext = async (tabId: string, code: string) => {
+  const { sendCommandAndWait } = await properCDPConnection(tabId);
+  
+  // Get available contexts
+  const contextsResponse = await sendCommandAndWait(1, 'Runtime.evaluate', {
+    expression: '1', // Simple expression to get context info
+    returnByValue: true
+  });
+  
+  // Execute in main page context (not extension contexts)
+  return await sendCommandAndWait(2, 'Runtime.evaluate', {
+    expression: code,
+    contextId: undefined, // Use default context
+    returnByValue: true
+  });
+};
+```
+
+## Debugging Best Practices - Lessons Learned
+
+### 1. Message Flow Management
+- **Always** filter WebSocket messages by command ID
+- Chrome extensions create lots of execution context noise
+- Use proper async/await patterns for command responses
+
+### 2. Environment Preparation  
+- Close Chrome DevTools before external CDP automation
+- Refresh target page after closing DevTools
+- Check for extension interference
+
+### 3. Error Recovery Patterns
+```typescript
+const robustCDPExecution = async (tabId: string, operation: () => Promise<any>) => {
+  try {
+    // Ensure clean environment
+    const isClean = await ensureCleanCDPEnvironment(tabId);
+    if (!isClean) {
+      throw new Error('DevTools interference detected');
+    }
+    
+    return await operation();
+    
+  } catch (error) {
+    if (error.message.includes('WebSocket connection')) {
+      // Reconnect and retry
+      await delay(1000);
+      return await operation();
+    }
+    throw error;
+  }
+};
+```
+
+### 4. Test Integration Strategies
+- **Prefer existing test frameworks** over custom injection
+- Use `awaitPromise: true` for async test execution  
+- Handle both sync and async test patterns
+- Monitor console output during test execution

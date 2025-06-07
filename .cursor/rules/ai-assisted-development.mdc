@@ -13,7 +13,7 @@ alwaysApply: false
 ```typescript
 interface MCPServerContext {
   version: "2.0.0-consolidated";
-  serverFile: "mcp_server_consolidated.py";
+  serverFile: "mcp_server.py";
   deprecatedFiles: [
     "mcp_server.py",
     "mcp_server_fixed.py", 

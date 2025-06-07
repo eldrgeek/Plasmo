@@ -100,5 +100,21 @@ __pycache__/*
 # setup_mcp.sh
 # start_mcp.sh
 # MCP_README.md
-# mcp_server.logtest_temp/
+# mcp_server.log
+
+# Test and development artifacts
+test_temp/
 test_report.txt
+.service_pids
+*_test_demo.py
+*_test.py
+quick_*.py
+simple_*.py
+fixed_*.py
+navigate_and_test.py
+run_tests_via_cdp.py
+test_cdp_*.py
+foo.txt
+hello_world.py
+*.backup
+plasmo_repository_context.txt
