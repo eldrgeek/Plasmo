@@ -1,4 +1,3 @@
-Test auto-restart system working
 #!/bin/bash
 
 # Start All Development Services with Auto-Restart
@@ -70,16 +69,68 @@ start_mcp_server() {
     
     # Use watchmedo for Python file watching if available
     if command -v watchmedo &> /dev/null; then
-        watchmedo auto-restart --patterns="*.py" --recursive --directory="." -- \
-            python3 mcp_server.py > logs/mcp_server.log 2>&1 &
-        MCP_PID=$!
-        print_status "✅ MCP Server started with file watching (PID: $MCP_PID)"
+        # Start with double-fork daemon pattern for true independence
+        (
+            # First fork
+            if python3 -c "
+import os, sys
+pid = os.fork()
+if pid > 0:
+    sys.exit(0)  # Parent exits
+
+# Child continues
+os.setsid()  # Create new session
+
+# Second fork  
+pid = os.fork()
+if pid > 0:
+    sys.exit(0)  # First child exits
+
+# Second child (daemon) continues
+import subprocess
+subprocess.run([
+    'watchmedo', 'auto-restart', 
+    '--patterns=*.py', 
+    '--recursive', 
+    '--directory=.',
+    '--',
+    'python3', 'mcp_server.py'
+], stdout=open('logs/mcp_server.log', 'w'), stderr=subprocess.STDOUT)
+" 2>/dev/null; then
+                print_status "✅ MCP Server started with file watching (daemon mode)"
+            else
+                print_error "❌ Failed to start MCP Server daemon"
+            fi
+        ) &
     else
-        # Fallback to simple restart
-        python3 mcp_server.py > logs/mcp_server.log 2>&1 &
-        MCP_PID=$!
-        print_status "✅ MCP Server started (PID: $MCP_PID)"
+        # Fallback to simple daemon
+        (
+            python3 -c "
+import os, sys
+pid = os.fork()
+if pid > 0:
+    sys.exit(0)
+
+os.setsid()
+
+pid = os.fork() 
+if pid > 0:
+    sys.exit(0)
+
+import subprocess
+subprocess.run(['python3', 'mcp_server.py'], 
+               stdout=open('logs/mcp_server.log', 'w'), 
+               stderr=subprocess.STDOUT)
+" 2>/dev/null
+        ) &
+        print_status "✅ MCP Server started (daemon mode)"
         print_warning "⚠️  Install watchdog for auto-restart: pip install watchdog"
+    fi
+    
+    # Give it time to start and check
+    sleep 3
+    if ! pgrep -f "python.*mcp_server.py" > /dev/null; then
+        print_error "❌ MCP Server failed to start properly"
     fi
 }
 
@@ -87,9 +138,10 @@ start_mcp_server() {
 start_socketio_server() {
     print_status "🌐 Starting SocketIO Server with auto-restart..."
     
-    nodemon --watch socketio_server.js --watch cursor_ai_injector.py \
+    nohup nodemon --watch socketio_server.js --watch cursor_ai_injector.py \
         --exec "node socketio_server.js" > logs/socketio_server.log 2>&1 &
     SOCKETIO_PID=$!
+    disown
     print_status "✅ SocketIO Server started with file watching (PID: $SOCKETIO_PID)"
 }
 
@@ -97,8 +149,9 @@ start_socketio_server() {
 start_plasmo_dev() {
     print_status "🎯 Starting Plasmo Dev Server..."
     
-    pnpm dev > logs/plasmo_dev.log 2>&1 &
+    nohup pnpm dev > logs/plasmo_dev.log 2>&1 &
     PLASMO_PID=$!
+    disown
     print_status "✅ Plasmo Dev Server started (PID: $PLASMO_PID)"
 }
 
@@ -106,8 +159,9 @@ start_plasmo_dev() {
 start_test_runner() {
     print_status "🧪 Starting Continuous Test Runner..."
     
-    python3 continuous_test_runner.py > logs/continuous_testing.log 2>&1 &
+    nohup python3 continuous_test_runner.py > logs/continuous_testing.log 2>&1 &
     TEST_RUNNER_PID=$!
+    disown
     print_status "✅ Continuous Test Runner started (PID: $TEST_RUNNER_PID)"
 }
 
@@ -188,4 +242,4 @@ echo ""
 print_status "🚀 All services are running in the background!"
 print_info "💡 Access the web interfaces:"
 echo "  • SocketIO Controller: http://localhost:3001"
-echo "  • MCP Server Health: http://localhost:8000/health" 
+echo "  • MCP Server Health: http://localhost:8000/mcp"
