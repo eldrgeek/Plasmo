@@ -1,178 +1,232 @@
 # Auto-Start Development Environment
 
-This project is configured to automatically start both the **MCP Server** and **Plasmo dev server** when you open the workspace in Cursor/VS Code.
+This document describes the automatic startup system for the Plasmo extension development environment, including MCP server integration with Cursor.
 
-## 🚀 Auto-Start Configuration
+## Overview
 
-### Method 1: VS Code Tasks (Recommended)
-The workspace is configured with VS Code tasks that automatically run when you open the project:
+The development environment includes:
+- **MCP Server**: Runs in stdio mode for Cursor integration
+- **SocketIO Server**: Real-time communication (port 3001)
+- **Plasmo Dev Server**: Extension development with hot reload
+- **MCP Protocol Testing**: Validates MCP server functionality
 
-**Files Created:**
-- `.vscode/tasks.json` - Task definitions
-- `.vscode/settings.json` - Workspace settings  
-- `.vscode/launch.json` - Debug configurations
+## VS Code Task Integration
 
-**What Happens Automatically:**
-1. **MCP Server** starts on `http://127.0.0.1:8000/mcp`
-2. **Plasmo dev server** starts with auto-reload
-3. Both run in separate terminal panels
-4. Services continue running until manually stopped
+### Auto-Start on Folder Open
 
-### Method 2: Manual Script
-If auto-start doesn't work or you prefer manual control:
+When you open the project in Cursor/VS Code, the following tasks automatically start:
 
-```bash
-./start_dev_environment.sh
-```
-
-This script:
-- ✅ Checks prerequisites (Python, pnpm)
-- 🔧 Starts MCP Server v2.0
-- 🎯 Starts Plasmo dev server
-- 🛑 Handles cleanup on Ctrl+C
-
-## 📋 Available Tasks
-
-Access via **Terminal > Run Task** or Command Palette (`Cmd+Shift+P`):
-
-| Task | Description |
-|------|-------------|
-| **Start MCP Server with Auto-Restart** | Launch MCP server with file watching |
-| **Start MCP Server (Basic)** | Launch MCP server without auto-restart |
-| **Start Plasmo Dev Server** | Launch Plasmo with auto-reload |
-| **Stop All Servers** | Kill MCP and Plasmo processes |
-| **Restart All Servers** | Stop and restart both services |
-
-## 🔄 Auto-Restart Feature
-
-The MCP server now includes intelligent auto-restart functionality:
-
-### What Files Are Watched
-- `mcp_server.py` - Main server file
-- `mcp_server.py` - Legacy server file
-- `chrome_debug_fixes.py` - Debug utilities
-- `requirements.txt` - Python dependencies
-
-### How It Works
-1. **File Monitoring**: Checks file modification times every 2 seconds
-2. **Change Detection**: Compares timestamps to detect changes
-3. **Graceful Restart**: Stops old server, starts new instance
-4. **Status Updates**: Shows restart progress in terminal
-
-### Manual Auto-Restart
-```bash
-# Start MCP server with auto-restart
-./start_mcp_auto_restart.sh
-
-# Or use the combined script
-./start_dev_environment.sh  # Includes auto-restart
-```
-
-## 🔧 Manual Control
-
-### Start Services
-```bash
-# MCP Server
-python3 mcp_server.py --port 8000
-
-# Plasmo Dev Server  
-pnpm dev
-```
-
-### Stop Services
-```bash
-# Stop all at once
-pkill -f "mcp_server.py|pnpm.*dev"
-
-# Or use VS Code task: "Stop All Servers"
-```
-
-## 🐛 Debug Configuration
-
-Launch configurations available in **Run and Debug** panel:
-
-- **Debug MCP Server** - Debug MCP server with breakpoints
-- **Launch Chrome for Extension Debug** - Start Chrome with debug flags
-- **Debug Extension + MCP** - Combined debugging session
-
-## ⚙️ Configuration Details
-
-### Auto-Start Settings
 ```json
 {
-    "task.allowAutomaticTasks": "on",
-    "runOptions": {
-        "runOn": "folderOpen"  
-    }
+  "label": "Auto-Start All Services",
+  "dependsOrder": "parallel",
+  "dependsOn": [
+    "Start MCP Server for Cursor",
+    "Start SocketIO Server", 
+    "Start Plasmo Dev"
+  ],
+  "runOptions": {
+    "runOn": "folderOpen"
+  }
 }
 ```
 
-### Environment Variables
-- `PLASMO_AUTO_RELOAD=true` - Enable auto-reload
-- `PYTHONPATH=${workspaceFolder}` - Python path for debugging
+### Individual Service Tasks
 
-## 🔍 Troubleshooting
-
-### Auto-Start Not Working
-1. **Check Task Permissions**: 
-   - Go to **Cursor > Preferences > Settings**
-   - Search for "automatic tasks"
-   - Ensure "Allow automatic tasks" is enabled
-2. **Verify Configuration**:
-   - Check `.vscode/settings.json` has `"task.allowAutomaticTasks": "on"`
-   - Ensure tasks.json has `"runOptions": {"runOn": "folderOpen"}`
-3. **Manual Test**:
-   - Run **Terminal > Run Task > Auto-Start Development Environment**
-   - If this works, restart Cursor to enable auto-start
-4. **Fallback Options**:
-   - Use manual script: `./start_dev_environment.sh`
-   - Use individual tasks: "Start MCP Server with Auto-Restart"
-
-### Force Enable Auto-Start
-If auto-start still doesn't work, try this:
-```bash
-# Method 1: Test if tasks work manually
-# Terminal > Run Task > Auto-Start Development Environment
-
-# Method 2: Use the manual startup script
-./start_dev_environment.sh
-
-# Method 3: Enable in Cursor settings
-# File > Preferences > Settings > Search "task.allowAutomaticTasks"
+#### MCP Server for Cursor
+```json
+{
+  "label": "Start MCP Server for Cursor",
+  "command": "python3",
+  "args": ["mcp_server.py", "--stdio"],
+  "presentation": {
+    "reveal": "never"  // Runs silently for Cursor
+  }
+}
 ```
+
+This starts the MCP server in **stdio mode** which is required for Cursor integration. The server communicates via stdin/stdout rather than HTTP.
+
+#### SocketIO Server
+```json
+{
+  "label": "Start SocketIO Server",
+  "command": "nodemon",
+  "args": ["--watch", "socketio_server.js", "--exec", "node socketio_server.js"]
+}
+```
+
+#### Plasmo Dev Server
+```json
+{
+  "label": "Start Plasmo Dev",
+  "command": "pnpm",
+  "args": ["dev"]
+}
+```
+
+## Manual Control
+
+### Start All Services
+Use the Command Palette (`Cmd+Shift+P`):
+1. Type "Tasks: Run Task"
+2. Select "Auto-Start All Services"
+
+### Stop All Services
+Use the Command Palette:
+1. Type "Tasks: Run Task" 
+2. Select "Stop All Services"
+
+Or run manually:
+```bash
+./stop_all_services.sh
+```
+
+### Check Service Status
+```bash
+./check_services.sh
+```
+
+## Testing Integration
+
+### MCP Protocol Tests
+Run tests that go through the actual MCP protocol:
+```bash
+python3 test_mcp_protocol.py --verbose
+```
+
+Or via VS Code task:
+1. Command Palette → "Tasks: Run Task"
+2. Select "Run MCP Tests"
+
+The MCP protocol tests validate:
+- Server initialization and communication
+- Tool discovery (`tools/list`)
+- File operations through MCP protocol
+- System operations through MCP protocol
+- Code analysis through MCP protocol
+
+### Legacy Direct Tests
+For comparison, direct function call tests:
+```bash
+./run_tests.sh --verbose
+```
+
+## MCP Server Integration
+
+### Cursor Configuration
+The MCP server is configured in `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "cursor-dev-assistant": {
+      "command": "python",
+      "args": ["/path/to/mcp_server.py", "--stdio"],
+      "env": {
+        "PYTHONPATH": "/path/to/project"
+      }
+    }
+  }
+}
+```
+
+### Stdio vs HTTP Mode
+- **Stdio Mode**: Used by Cursor for MCP integration
+  - Started with: `python3 mcp_server.py --stdio`
+  - Communication via stdin/stdout JSON-RPC
+  - Required for Cursor MCP tools to work
+
+- **HTTP Mode**: Used for standalone testing
+  - Started with: `python3 mcp_server.py` (default)
+  - REST API on http://localhost:8000
+  - Used by `start_all_services.sh`
+
+## File Watching and Auto-Restart
+
+### MCP Server Auto-Restart
+The MCP server automatically restarts when these files change:
+- `mcp_server.py`
+- `chrome_debug_fixes.py`
+- `requirements.txt`
+
+### SocketIO Server Auto-Restart
+Auto-restarts when these files change:
+- `socketio_server.js`
+- `cursor_ai_injector.py`
+
+### Plasmo Dev Server
+Built-in hot reload for:
+- TypeScript/React files
+- CSS files
+- Extension manifest
+
+## Log Files
+All services log to the `logs/` directory:
+- `logs/mcp_server.log` - MCP server output
+- `logs/socketio_server.log` - SocketIO server output  
+- `logs/plasmo_dev.log` - Plasmo development server output
+
+## Troubleshooting
+
+### MCP Server Not Connecting to Cursor
+1. Check that MCP server is running in stdio mode (not HTTP mode)
+2. Verify `claude_desktop_config.json` path and configuration
+3. Restart Cursor after configuration changes
+4. Check VS Code tasks are using `--stdio` flag
+
+### Services Not Auto-Starting
+1. Ensure `.vscode/settings.json` has: `"task.allowAutomaticTasks": "on"`
+2. Check `.vscode/tasks.json` syntax
+3. Verify all required files exist (`mcp_server.py`, `socketio_server.js`, `package.json`)
 
 ### Port Conflicts
-```bash
-# Check what's using port 8000
-lsof -i :8000
+- SocketIO Server: Uses port 3001
+- MCP Server (HTTP mode): Uses port 8000
+- Plasmo Dev: Uses dynamic port (usually 1012, 1013, etc.)
 
-# Kill conflicting processes
-pkill -f mcp_server
+### Permission Issues
+Make scripts executable:
+```bash
+chmod +x start_all_services.sh
+chmod +x stop_all_services.sh  
+chmod +x check_services.sh
 ```
 
-### MCP Server Issues
-```bash
-# Check logs
-tail -f mcp_server.log
+## Development Workflow
 
-# Test server directly
-curl http://127.0.0.1:8000/mcp
-```
+### Typical Development Session
+1. Open project in Cursor → Services auto-start
+2. MCP tools become available in Cursor
+3. Extension auto-reloads on file changes
+4. Use MCP protocol tests to validate changes
+5. Use "Stop All Services" when done
 
-### Plasmo Dev Issues
-```bash
-# Clear Plasmo cache
-rm -rf .plasmo
+### When MCP Server Changes
+1. Edit `mcp_server.py`
+2. Auto-restart detects changes and restarts server
+3. Run `python3 test_mcp_protocol.py` to validate
+4. Cursor automatically reconnects to updated server
 
-# Reinstall dependencies
-pnpm install
-```
+### Chrome Debugging Integration  
+1. Start Chrome with debug flags: `./launch-chrome-debug.sh`
+2. Use MCP tools for Chrome automation
+3. Monitor extension behavior through MCP server logs
 
-## 🎯 Development Workflow
+## Architecture Benefits
 
-1. **Open Project** - Services start automatically
-2. **Code Changes** - Plasmo auto-reloads extension
-3. **Debug Extension** - Use Chrome debug tools via MCP
-4. **Close Project** - Services stop automatically
+### Parallel Service Startup
+- All services start simultaneously for faster development setup
+- Independent restart capabilities
+- Isolated logging and monitoring
 
-Perfect for rapid development cycles! 🚀 
+### MCP Protocol Integration
+- Real MCP protocol validation ensures Cursor compatibility
+- Tests the actual communication layer used by Cursor
+- Validates JSON-RPC message handling
+
+### Hot Reload Support
+- MCP server changes don't require manual restart
+- Extension changes immediately reflect in browser
+- SocketIO server updates maintain WebSocket connections
+
+This setup provides a complete development environment with automatic MCP server integration, real-time testing, and seamless Cursor workflow integration. 

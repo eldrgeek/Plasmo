@@ -503,3 +503,311 @@ const robustCDPExecution = async (tabId: string, operation: () => Promise<any>) 
 - Use `awaitPromise: true` for async test execution  
 - Handle both sync and async test patterns
 - Monitor console output during test execution
+
+## Critical WebSocket Message Filtering Patterns
+**Key Discovery**: Chrome extensions flood CDP WebSocket with contextual messages
+
+```typescript
+// WebSocket message filtering for reliable CDP operations
+interface CDPMessage {
+  id: number;
+  method: string;
+  result?: any;
+  error?: any;
+}
+
+// CRITICAL: Filter WebSocket messages by command ID to avoid extension noise
+const executeReliableCDP = async (command: any): Promise<any> => {
+  const commandId = Date.now() + Math.random(); // Unique ID
+  
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`CDP command timeout for ID ${commandId}`));
+    }, 10000);
+    
+    // Listen for SPECIFIC command response
+    const messageHandler = (message: CDPMessage) => {
+      if (message.id === commandId) {
+        clearTimeout(timeout);
+        ws.removeEventListener('message', messageHandler);
+        
+        if (message.error) {
+          reject(new Error(message.error.message));
+        } else {
+          resolve(message.result);
+        }
+      }
+      // IGNORE all other messages (extension noise)
+    };
+    
+    ws.addEventListener('message', messageHandler);
+    ws.send(JSON.stringify({ id: commandId, ...command }));
+  });
+};
+
+// Extension context noise patterns to ignore
+const EXTENSION_NOISE_PATTERNS = [
+  'Runtime.executionContextCreated',
+  'Runtime.executionContextDestroyed', 
+  'Page.frameNavigated',
+  'Network.requestWillBeSent',
+  // Extension-specific events that flood the WebSocket
+];
+```
+
+## DevTools Interference Prevention
+**Critical Issue**: DevTools open on same tab blocks external CDP operations
+
+```typescript
+// DevTools conflict detection and resolution
+const ensureDevToolsClosed = async (tabId: string): Promise<boolean> => {
+  try {
+    // Check if DevTools is attached to tab
+    const debuggerInfo = await chrome.debugger.getTargets();
+    const attachedTab = debuggerInfo.find(target => 
+      target.tabId === tabId && target.attached
+    );
+    
+    if (attachedTab) {
+      console.warn(`⚠️ DevTools attached to tab ${tabId}, CDP operations may fail`);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to check DevTools status:', error);
+    return false;
+  }
+};
+
+// Auto-close DevTools before CDP operations
+const prepareTabForCDP = async (tabId: string): Promise<void> => {
+  // Send message to close DevTools if open
+  try {
+    await chrome.tabs.sendMessage(tabId, { 
+      action: 'close_devtools',
+      reason: 'CDP_AUTOMATION' 
+    });
+    
+    // Wait for DevTools to close
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const isReady = await ensureDevToolsClosed(tabId);
+    if (!isReady) {
+      throw new Error(`Tab ${tabId} still has DevTools attached`);
+    }
+  } catch (error) {
+    console.warn('Could not auto-close DevTools:', error.message);
+  }
+};
+```
+
+## Continuous Testing Automation Patterns
+**Integration**: File watching triggers automated CDP test execution
+
+```typescript
+// File watcher integrated with CDP testing
+interface TestTrigger {
+  filePattern: string[];
+  testCommand: string;
+  cooldownMs: number;
+}
+
+const FILE_WATCH_TRIGGERS: TestTrigger[] = [
+  {
+    filePattern: ['*.ts', '*.tsx', '*.js', '*.jsx'],
+    testCommand: 'await window.testRunner.run()',
+    cooldownMs: 1000
+  },
+  {
+    filePattern: ['*.html', '*.css'],
+    testCommand: 'await window.validateUI()',
+    cooldownMs: 2000
+  },
+  {
+    filePattern: ['*.py'],
+    testCommand: 'await window.testBackendIntegration()',
+    cooldownMs: 3000
+  }
+];
+
+// Continuous testing workflow
+const startContinuousTesting = async () => {
+  const watcher = new FileWatcher(FILE_WATCH_TRIGGERS);
+  
+  watcher.onChange(async (trigger, changedFile) => {
+    console.log(`🔄 File changed: ${changedFile}, running tests...`);
+    
+    try {
+      // Ensure clean CDP environment
+      await prepareTabForCDP(testTabId);
+      
+      // Execute tests via CDP
+      const result = await executeReliableCDP({
+        method: 'Runtime.evaluate',
+        params: {
+          expression: trigger.testCommand,
+          awaitPromise: true,
+          returnByValue: true
+        }
+      });
+      
+      // Send results to SocketIO for real-time feedback
+      await notifyTestResults(result, changedFile);
+      
+    } catch (error) {
+      console.error(`❌ Test execution failed:`, error);
+      await notifyTestError(error, changedFile);
+    }
+  });
+};
+
+// Test result notification system
+const notifyTestResults = async (result: any, trigger: string) => {
+  const payload = {
+    timestamp: Date.now(),
+    trigger,
+    status: result.value ? 'success' : 'failure',
+    results: result.value,
+    source: 'continuous_testing'
+  };
+  
+  // Send to SocketIO for real-time UI updates
+  await fetch('http://localhost:3001/api/test-results', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+};
+```
+
+## Service Coordination Patterns
+**Architecture**: Coordinated startup/shutdown of multiple development services
+
+```typescript
+// Multi-service orchestration for development environment
+interface ServiceConfig {
+  name: string;
+  command: string;
+  port?: number;
+  healthCheck: () => Promise<boolean>;
+  dependencies: string[];
+  logFile: string;
+}
+
+const DEVELOPMENT_SERVICES: ServiceConfig[] = [
+  {
+    name: 'MCP_SERVER',
+    command: 'python3 mcp_server.py',
+    port: 8000,
+    healthCheck: () => fetch('http://localhost:8000/health'),
+    dependencies: [],
+    logFile: 'logs/mcp_server.log'
+  },
+  {
+    name: 'SOCKETIO_SERVER', 
+    command: 'node socketio_server.js',
+    port: 3001,
+    healthCheck: () => fetch('http://localhost:3001'),
+    dependencies: [],
+    logFile: 'logs/socketio_server.log'
+  },
+  {
+    name: 'PLASMO_DEV',
+    command: 'pnpm dev',
+    healthCheck: () => checkPlasmoStatus(),
+    dependencies: [],
+    logFile: 'logs/plasmo_dev.log'
+  },
+  {
+    name: 'CONTINUOUS_TESTING',
+    command: 'python3 continuous_test_runner.py',
+    healthCheck: () => checkTestRunnerStatus(),
+    dependencies: ['MCP_SERVER', 'SOCKETIO_SERVER'],
+    logFile: 'logs/continuous_testing.log'
+  }
+];
+
+// Coordinated service startup with dependency resolution
+const startDevelopmentEnvironment = async (): Promise<boolean> => {
+  const startedServices = new Set<string>();
+  
+  // Start services in dependency order
+  while (startedServices.size < DEVELOPMENT_SERVICES.length) {
+    for (const service of DEVELOPMENT_SERVICES) {
+      if (startedServices.has(service.name)) continue;
+      
+      // Check if dependencies are met
+      const dependenciesMet = service.dependencies.every(dep => 
+        startedServices.has(dep)
+      );
+      
+      if (!dependenciesMet) continue;
+      
+      // Start service
+      console.log(`🚀 Starting ${service.name}...`);
+      await startService(service);
+      
+      // Wait for health check
+      await waitForHealthy(service);
+      startedServices.add(service.name);
+      
+      console.log(`✅ ${service.name} ready`);
+    }
+  }
+  
+  return true;
+};
+```
+
+## Error Recovery and Resilience Patterns
+**Robustness**: Handle CDP connection failures and service interruptions
+
+```typescript
+// Resilient CDP operations with automatic recovery
+const resilientCDPOperation = async (operation: () => Promise<any>, maxRetries = 3): Promise<any> => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Verify connection health before operation
+      await ensureCDPConnection();
+      
+      // Execute operation
+      const result = await operation();
+      return result;
+      
+    } catch (error) {
+      console.warn(`❌ CDP operation failed (attempt ${attempt}/${maxRetries}):`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw new Error(`CDP operation failed after ${maxRetries} attempts: ${error.message}`);
+      }
+      
+      // Recovery strategies based on error type
+      if (error.message.includes('WebSocket')) {
+        await reconnectWebSocket();
+      } else if (error.message.includes('tab')) {
+        await refreshTabConnection();
+      } else if (error.message.includes('Runtime')) {
+        await enableRuntimeDomain();
+      }
+      
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+// Connection health monitoring
+const monitorCDPHealth = async (): Promise<void> => {
+  setInterval(async () => {
+    try {
+      await executeReliableCDP({
+        method: 'Runtime.evaluate',
+        params: { expression: '1+1', returnByValue: true }
+      });
+    } catch (error) {
+      console.warn('CDP health check failed, attempting recovery...');
+      await recoverCDPConnection();
+    }
+  }, 30000); // Check every 30 seconds
+};
+```

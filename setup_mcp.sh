@@ -1,4 +1,4 @@
-#!/bin/bash
+r#!/bin/bash
 
 echo "🚀 Setting up FastMCP Server for Cursor Integration"
 echo "=================================================="
