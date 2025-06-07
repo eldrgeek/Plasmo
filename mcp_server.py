@@ -882,7 +882,7 @@ async def send_chrome_command_async(ws_url: str, command: str, params: Dict = No
     Returns:
         Command response or error information
     """
-    request_id = str(uuid.uuid4())[:8]
+    request_id = int(time.time() * 1000000) % 1000000  # Generate integer ID from timestamp
     message = {
         "id": request_id,
         "method": command,
@@ -897,14 +897,16 @@ async def send_chrome_command_async(ws_url: str, command: str, params: Dict = No
             
             # Wait for response with timeout
             start_time = time.time()
+            messages_received = 0
             while time.time() - start_time < timeout:
                 try:
                     response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
                     data = json.loads(response)
+                    messages_received += 1
                     
                     # Skip events, only process our response
                     if data.get("id") == request_id:
-                        logger.info(f"Received response for command {command}")
+                        logger.info(f"Received response for command {command} after {messages_received} messages")
                         return {
                             "success": True,
                             "command": command,
@@ -916,9 +918,12 @@ async def send_chrome_command_async(ws_url: str, command: str, params: Dict = No
                     else:
                         # Log events for debugging
                         if "method" in data:
-                            logger.debug(f"Received event: {data['method']}")
+                            logger.info(f"Received event #{messages_received}: {data['method']}")
+                        else:
+                            logger.info(f"Received unexpected message #{messages_received}: {data}")
                         
                 except asyncio.TimeoutError:
+                    logger.info(f"1-second recv timeout, {messages_received} messages so far, continuing...")
                     continue
             
             return {
