@@ -3,283 +3,327 @@ description: "MCP server development and integration standards"
 globs: ["**/*mcp*.py", "**/*mcp*.ts", "**/*mcp*.js", "**/mcp_server.py"]
 alwaysApply: false
 ---
-# MCP Server Development Standards
+# MCP Server Development Standards v2.0
+
+## Server Consolidation and Architecture
+
+### ⚠️ CRITICAL: Use Consolidated Server
+**IMPORTANT**: The project now has a **single consolidated MCP server** that combines all improvements:
+
+- **File to use**: `mcp_server.py` (v2.0.0)
+- **Deprecated files**: `mcp_server.py`, `mcp_server_fixed.py`, `mcp_server_backup.py`, `mcp_server_v1.1.1_unicode_fix.py`
+- **Benefits**: Eliminates redundancy, comprehensive error handling, enhanced security
+
+### Version 2.0 Improvements
+✅ **Unified codebase** - No more duplicate functions across multiple files  
+✅ **Enhanced error handling** - Comprehensive exception management with logging  
+✅ **Security validation** - Path traversal protection and input sanitization  
+✅ **Resource management** - Proper WebSocket cleanup and connection tracking  
+✅ **Unicode safety** - Robust handling of emoji and special characters  
+✅ **Thread safety** - Protected shared resources with proper locking  
+✅ **Logging integration** - Structured logging for debugging and monitoring  
 
 ## Development Workflow - CRITICAL CONSTRAINTS
 
 ### ⚠️ Server Code Changes Require Restart
-**IMPORTANT**: After modifying MCP server code (mcp_server.py), the server must be restarted and reconnected before testing changes:
+**IMPORTANT**: After modifying MCP server code, the server must be restarted and reconnected before testing changes:
 
 1. **Stop current server** (Ctrl+C or kill process)
-2. **Restart server** with your changes
+2. **Use consolidated server**: `python3 mcp_server.py`
 3. **Reconnect Cursor** (restart Cursor or wait for automatic reconnection)
-4. **Only then can you test** the modified tools
-
-**Why**: MCP servers run as separate processes. Code changes don't take effect until the server process is restarted and the client (Cursor) reconnects to the new process.
+4. **Test tools** only after successful restart+reconnection
 
 ### Development Testing Workflow
 ```bash
-# 1. Make changes to mcp_server.py
-# 2. Stop server (if running)
-pkill -f "mcp_server.py"
+# 1. Use the consolidated server
+python3 mcp_server.py --port 8000
 
-# 3. Restart server with changes
-python3 mcp_server.py --port 8001  # Use different port if needed
+# 2. Verify server is running
+curl -s "http://127.0.0.1:8000" | head -5
 
-# 4. Verify server is running
-curl -s "http://127.0.0.1:8001/mcp" | head -5
-
-# 5. Test tools ONLY after restart+reconnection
+# 3. Test tools ONLY after restart+reconnection
 ```
 
-### Cursor Integration Workflow
-- **HTTP Mode**: Cursor will auto-reconnect when server restarts on same port
-- **STDIO Mode**: Must restart Cursor completely after server changes
-- **Debug Mode**: Use different ports during development to avoid conflicts
-- **Validation**: Always verify tool availability before testing changes
-
 ### Common Development Mistakes to Avoid
+❌ **Don't**: Use deprecated server files (mcp_server.py, mcp_server_fixed.py, etc.)  
+✅ **Do**: Always use `mcp_server.py`  
+
 ❌ **Don't**: Try to test tools immediately after editing server code  
 ✅ **Do**: Always restart server and wait for reconnection  
 
-❌ **Don't**: Assume tool failures are code bugs without restarting server first  
-✅ **Do**: Restart server as first debugging step  
+❌ **Don't**: Ignore resource cleanup warnings in logs  
+✅ **Do**: Monitor logs for connection and resource management issues  
 
-❌ **Don't**: Edit server code while tools are actively being tested  
-✅ **Do**: Finish testing, then edit, then restart cycle  
+## Error Handling Standards v2.0
 
-## FastMCP Implementation Patterns
-Follow these patterns for consistent MCP server development:
-
+### Comprehensive Error Response Format
 ```python
-from fastmcp import FastMCP
-import uvicorn
-from typing import List, Dict, Any, Optional
-
-# Initialize with descriptive name
-mcp = FastMCP("Plasmo Development Assistant")
-
-@mcp.tool()
-def tool_name(param: str, optional_param: Optional[int] = None) -> Dict[str, Any]:
-    """
-    Clear, descriptive docstring explaining tool purpose.
-    
-    Args:
-        param: Description of required parameter
-        optional_param: Description of optional parameter
-        
-    Returns:
-        Dictionary with tool execution results
-        
-    Example:
-        >>> tool_name("example", 42)
-        {"success": True, "data": {...}}
-    """
-    try:
-        # Implementation with proper error handling
-        result = perform_operation(param, optional_param)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-```
-
-## Error Handling Standards
-```python
-# Consistent error response format
-def handle_error(operation: str, error: Exception) -> Dict[str, Any]:
-    """Standard error response format for MCP tools."""
-    return {
+def handle_error(operation: str, error: Exception, context: Dict = None) -> Dict[str, Any]:
+    """Enhanced error response format for MCP tools."""
+    error_response = {
         "success": False,
         "operation": operation,
         "error": str(error),
-        "error_type": type(error).__name__
+        "error_type": type(error).__name__,
+        "timestamp": datetime.now().isoformat()
     }
+    
+    if context:
+        error_response["context"] = make_json_safe(context)
+    
+    # Log error for debugging
+    logger.error(f"Error in {operation}: {error}", exc_info=True)
+    
+    return error_response
 
-# Usage in tools
-@mcp.tool()
-def file_operation(path: str) -> Dict[str, Any]:
-    """Perform file operation with proper error handling."""
-    try:
-        # File operation logic
-        return {"success": True, "data": result}
-    except FileNotFoundError as e:
-        return handle_error("file_read", e)
-    except PermissionError as e:
-        return handle_error("file_access", e)
-    except Exception as e:
-        return handle_error("file_operation", e)
+# Enhanced decorator for safe operations
+def safe_operation(operation_name: str):
+    """Decorator for comprehensive error handling."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except FileNotFoundError as e:
+                return handle_error(operation_name, e, {"file_operation": True})
+            except PermissionError as e:
+                return handle_error(operation_name, e, {"permission_issue": True})
+            except UnicodeDecodeError as e:
+                return handle_error(operation_name, e, {"encoding_issue": True})
+            except asyncio.TimeoutError as e:
+                return handle_error(operation_name, e, {"timeout_issue": True})
+            except Exception as e:
+                return handle_error(operation_name, e, {"unexpected_error": True})
+        return wrapper
+    return decorator
 ```
 
-## Security Best Practices
-- Validate all input parameters
-- Sanitize file paths to prevent directory traversal
-- Implement rate limiting for resource-intensive operations
-- Use allowlists for permitted file operations
-- Never expose sensitive system information
+## Security Best Practices v2.0
 
+### Enhanced Security Patterns
 ```python
-import os
-from pathlib import Path
-
-def safe_path_check(requested_path: str, allowed_base: str) -> bool:
-    """Ensure requested path is within allowed directory."""
+def validate_file_path(file_path: str, base_dir: str = None) -> bool:
+    """Enhanced path validation with security checks."""
     try:
-        requested = Path(requested_path).resolve()
-        allowed = Path(allowed_base).resolve()
-        return str(requested).startswith(str(allowed))
-    except Exception:
+        requested = Path(file_path).resolve()
+        base = Path(base_dir or Path.cwd()).resolve()
+        
+        # Check if path is within allowed directory
+        if not str(requested).startswith(str(base)):
+            logger.warning(f"Path traversal attempt: {file_path}")
+            return False
+        
+        # Additional security checks
+        if any(part.startswith('.') for part in requested.parts[len(base.parts):]):
+            logger.warning(f"Hidden directory access attempt: {file_path}")
+            return False
+            
+        return True
+    except Exception as e:
+        logger.error(f"Path validation error: {e}")
         return False
 
 @mcp.tool()
-def safe_file_read(file_path: str) -> Dict[str, Any]:
-    """Read file with security checks."""
-    if not safe_path_check(file_path, os.getcwd()):
-        return {"success": False, "error": "Access denied: path outside project"}
+@safe_operation("secure_file_read")
+def secure_file_read(file_path: str) -> Union[str, Dict[str, Any]]:
+    """Read file with comprehensive security validation."""
+    if not validate_file_path(file_path):
+        return {"success": False, "error": "Access denied: invalid file path"}
     
-    # Proceed with file reading
+    # Additional size check
+    file_path = Path(file_path)
+    if file_path.stat().st_size > 50 * 1024 * 1024:  # 50MB limit
+        return {"success": False, "error": "File too large for reading"}
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return f.read()
 ```
 
-## Tool Categories and Organization
-Organize tools into logical categories:
+## Chrome Debug Protocol Integration v2.0
 
-### File Operations
-- `read_file`: Read file contents
-- `write_file`: Write to files with backup
-- `list_files`: Directory listing with filtering
-- `search_in_files`: Content search across files
-
-### Development Tools
-- `analyze_code`: Code quality analysis
-- `run_tests`: Execute test suites
-- `lint_code`: Static analysis and formatting
-- `get_dependencies`: Package dependency analysis
-
-### Git Operations
-- `git_status`: Repository status
-- `git_log`: Commit history
-- `git_diff`: Show changes
-- `git_branch`: Branch operations (read-only)
-
-### Chrome Extension Specific
-- `validate_manifest`: Check manifest.json compliance
-- `check_permissions`: Analyze permission usage
-- `build_extension`: Execute build process
-- `package_extension`: Create distribution package
-
-## HTTP Transport Configuration
+### Enhanced Chrome Debugging Patterns
 ```python
-# Server configuration
-SERVER_CONFIG = {
-    "host": "127.0.0.1",
-    "port": 8000,
-    "log_level": "info",
-    "reload": False  # Set to True only in development
-}
+# Resource management for WebSocket connections
+@asynccontextmanager
+async def managed_websocket(ws_url: str):
+    """Context manager for safe WebSocket connections."""
+    ws = None
+    try:
+        ws = await websockets.connect(ws_url)
+        active_connections.add(ws)
+        logger.info(f"WebSocket connection established: {ws_url}")
+        yield ws
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {e}")
+        raise
+    finally:
+        if ws:
+            active_connections.discard(ws)
+            await ws.close()
+            logger.info(f"WebSocket connection closed: {ws_url}")
 
-if __name__ == "__main__":
-    print(f"Starting MCP server on {SERVER_CONFIG['host']}:{SERVER_CONFIG['port']}")
-    uvicorn.run(mcp.app, **SERVER_CONFIG)
+# Robust command execution
+async def execute_chrome_command(ws_url: str, command: str, params: Dict = None) -> Dict[str, Any]:
+    """Execute Chrome Debug Protocol command with full error handling."""
+    request_id = str(uuid.uuid4())[:8]
+    
+    try:
+        async with managed_websocket(ws_url) as websocket:
+            # Send command with timeout
+            message = {
+                "id": request_id,
+                "method": command,
+                "params": params or {}
+            }
+            
+            await asyncio.wait_for(
+                websocket.send(json.dumps(message)),
+                timeout=5.0
+            )
+            
+            # Wait for response with proper filtering
+            start_time = time.time()
+            while time.time() - start_time < 10:
+                try:
+                    response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                    data = json.loads(response)
+                    
+                    if data.get("id") == request_id:
+                        return {
+                            "success": True,
+                            "result": make_json_safe(data.get("result", {})),
+                            "error": data.get("error"),
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        
+                except asyncio.TimeoutError:
+                    continue
+            
+            return {"success": False, "error": "Command timeout"}
+            
+    except Exception as e:
+        logger.error(f"Chrome command error: {e}")
+        return {"success": False, "error": str(e)}
 ```
 
-## Cursor Integration Guidelines
+## Tool Categories and Organization v2.0
+
+### Enhanced Tool Structure
+```python
+# Core File Operations (with security)
+- `read_file`: Secure file reading with path validation
+- `write_file`: Atomic file writing with backup creation
+- `list_files`: Directory listing with security filtering
+- `search_in_files`: Content search with regex support and size limits
+
+# Development Tools (enhanced)
+- `analyze_code`: Comprehensive code metrics and complexity analysis
+- `get_project_structure`: Intelligent project tree with ignore patterns
+- `run_git_command`: Secure git operations with command filtering
+
+# Chrome Extension Debugging (v2.0)
+- `connect_to_chrome`: Enhanced connection management with validation
+- `launch_chrome_debug`: Multi-platform Chrome launching with fallbacks
+- `execute_javascript_fixed`: Robust JS execution with proper async handling
+- `get_chrome_tabs`: Intelligent tab filtering with extension detection
+- `start_console_monitoring_fixed`: Real-time console monitoring
+- `get_console_logs`: Enhanced log retrieval with filtering
+- `clear_console_logs`: Safe log cleanup
+- `set_breakpoint_fixed`: Intelligent breakpoint management
+
+# System Operations (enhanced)
+- `get_system_info`: Comprehensive system analysis with privacy controls
+- `server_info`: Detailed server status and capabilities
+- `create_sqlite_db`: Secure database creation with validation
+- `query_sqlite_db`: Safe query execution with injection protection
+```
+
+## Performance and Monitoring v2.0
+
+### Logging and Monitoring Standards
+```python
+# Structured logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('mcp_server.log'),
+        logging.StreamHandler()
+    ]
+)
+
+# Performance monitoring
+@mcp.tool()
+def get_server_metrics() -> Dict[str, Any]:
+    """Get comprehensive server performance metrics."""
+    return {
+        "active_connections": len(active_connections),
+        "background_tasks": len(background_tasks),
+        "chrome_instances": len(chrome_instances),
+        "console_listeners": len(console_log_listeners),
+        "total_console_logs": len(console_logs),
+        "memory_usage": get_memory_usage(),
+        "uptime": get_server_uptime(),
+        "timestamp": datetime.now().isoformat()
+    }
+```
+
+## Migration Guide
+
+### From Legacy Servers to Consolidated v2.0
+1. **Stop all existing MCP servers**
+2. **Update Cursor configuration** to use `mcp_server.py`
+3. **Test all tools** to ensure functionality
+4. **Monitor logs** for any migration issues
+5. **Remove legacy server files** after successful validation
+
+### Configuration Updates
 ```json
 {
   "mcpServers": {
-    "plasmo-dev-assistant": {
+    "plasmo-dev-assistant-v2": {
       "transport": {
         "type": "http",
         "url": "http://127.0.0.1:8000"
       },
-      "description": "Development tools for Plasmo Chrome extension",
+      "description": "Consolidated MCP server v2.0 with enhanced Chrome debugging",
       "capabilities": [
-        "file_operations",
-        "code_analysis", 
-        "git_integration",
-        "extension_tools"
+        "secure_file_operations",
+        "enhanced_code_analysis", 
+        "safe_git_integration",
+        "robust_chrome_debugging",
+        "real_time_console_monitoring",
+        "intelligent_error_handling"
       ]
     }
   }
 }
 ```
 
-## Performance Optimization
-- Cache frequently accessed data
-- Implement async operations for I/O bound tasks
-- Use streaming for large file operations
-- Limit result sizes with pagination
-- Monitor memory usage for long-running operations
+## Knowledge Injection Requirements
 
-```python
-import asyncio
-from functools import lru_cache
+### MCP Server Context Awareness
+When using the MCP server in any conversation, the AI assistant must be aware of:
 
-@lru_cache(maxsize=128)
-def cached_file_analysis(file_path: str) -> Dict[str, Any]:
-    """Cache expensive file analysis operations."""
-    return perform_analysis(file_path)
+1. **Current server version**: v2.0.0 Consolidated Edition
+2. **Available tools and capabilities**: Full tool list with enhanced features
+3. **Error handling patterns**: Comprehensive error responses with logging
+4. **Security constraints**: Path validation and input sanitization
+5. **Chrome debugging capabilities**: Real-time monitoring and robust execution
+6. **Resource management**: Connection tracking and cleanup procedures
 
-@mcp.tool()
-async def async_large_operation(directory: str) -> Dict[str, Any]:
-    """Handle large operations asynchronously."""
-    try:
-        result = await asyncio.to_thread(process_large_directory, directory)
-        return {"success": True, "data": result}
-    except Exception as e:
-        return handle_error("large_operation", e)
+### Context Injection Pattern
+```typescript
+// Include in every MCP-related conversation:
+interface MCPServerContext {
+  version: "2.0.0";
+  serverFile: "mcp_server_consolidated.py";
+  capabilities: string[];
+  securityFeatures: string[];
+  chromeDebugging: boolean;
+  resourceManagement: boolean;
+  errorHandling: "comprehensive";
+  unicode_support: boolean;
+}
 ```
 
-## Testing MCP Tools
-```python
-import pytest
-from unittest.mock import patch, mock_open
-
-def test_file_read_tool():
-    """Test file reading tool functionality."""
-    mock_content = "test file content"
-    
-    with patch("builtins.open", mock_open(read_data=mock_content)):
-        result = read_file("test.txt")
-        
-    assert result["success"] is True
-    assert result["data"] == mock_content
-
-def test_file_read_error():
-    """Test file reading error handling."""
-    with patch("builtins.open", side_effect=FileNotFoundError):
-        result = read_file("nonexistent.txt")
-        
-    assert result["success"] is False
-    assert "error" in result
-```
-
-## Logging and Monitoring
-```python
-import logging
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@mcp.tool()
-def logged_operation(param: str) -> Dict[str, Any]:
-    """Tool with proper logging."""
-    logger.info(f"Starting operation with param: {param}")
-    
-    try:
-        result = perform_operation(param)
-        logger.info(f"Operation completed successfully")
-        return {"success": True, "data": result}
-    except Exception as e:
-        logger.error(f"Operation failed: {str(e)}")
-        return handle_error("operation", e)
-```
-
-## Documentation Requirements
-- Each tool must have comprehensive docstrings
-- Include usage examples in docstrings
-- Document all parameters and return values
-- Provide integration examples for Cursor
-- Maintain API changelog for breaking changes
+This ensures that any conversation using the MCP server has full context about its capabilities, limitations, and proper usage patterns.

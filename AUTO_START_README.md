@@ -48,7 +48,7 @@ Access via **Terminal > Run Task** or Command Palette (`Cmd+Shift+P`):
 The MCP server now includes intelligent auto-restart functionality:
 
 ### What Files Are Watched
-- `mcp_server_consolidated.py` - Main server file
+- `mcp_server.py` - Main server file
 - `mcp_server.py` - Legacy server file
 - `chrome_debug_fixes.py` - Debug utilities
 - `requirements.txt` - Python dependencies
@@ -73,7 +73,7 @@ The MCP server now includes intelligent auto-restart functionality:
 ### Start Services
 ```bash
 # MCP Server
-python3 mcp_server_consolidated.py --port 8000
+python3 mcp_server.py --port 8000
 
 # Plasmo Dev Server  
 pnpm dev
@@ -82,7 +82,7 @@ pnpm dev
 ### Stop Services
 ```bash
 # Stop all at once
-pkill -f "mcp_server_consolidated.py|pnpm.*dev"
+pkill -f "mcp_server.py|pnpm.*dev"
 
 # Or use VS Code task: "Stop All Servers"
 ```
