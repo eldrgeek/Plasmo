@@ -1,0 +1,9 @@
+{
+  "name": "com.plasmo.cursor_controller",
+  "description": "Native messaging host for controlling Cursor IDE",
+  "path": "/Users/MikeWolf/Projects/Plasmo/cursor_controller.py",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://geecdfagcfbibajkjnggdebjncadidmc/"
+  ]
+}
