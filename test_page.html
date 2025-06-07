@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🧪 MCP Server Test Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .pass { background-color: #d4edda; }
+        .fail { background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Chrome Debug Protocol Test Suite</h1>
+    <!-- Test trigger: Continuous testing demo -->
+    <!-- Testing auto-test trigger: Change #2 -->
+    <div id="results"></div>
+    
+    <script>
+        // Simple test framework
+        class TestRunner {
+            constructor() {
+                this.tests = [];
+                this.results = [];
+            }
+            
+            test(name, fn) {
+                this.tests.push({ name, fn });
+            }
+            
+            async run() {
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = '<h2>🏃‍♂️ Running Tests...</h2>';
+                
+                for (let test of this.tests) {
+                    try {
+                        console.log(`🧪 Running: ${test.name}`);
+                        await test.fn();
+                        this.results.push({ name: test.name, status: 'PASS' });
+                        console.log(`✅ ${test.name} PASSED`);
+                    } catch (error) {
+                        this.results.push({ name: test.name, status: 'FAIL', error: error.message });
+                        console.error(`❌ ${test.name} FAILED:`, error.message);
+                    }
+                }
+                
+                this.displayResults();
+                return this.results;
+            }
+            
+            displayResults() {
+                const resultsDiv = document.getElementById('results');
+                const passed = this.results.filter(r => r.status === 'PASS').length;
+                const failed = this.results.filter(r => r.status === 'FAIL').length;
+                
+                let html = `<h2>📊 Results: ${passed} passed, ${failed} failed</h2>`;
+                this.results.forEach(result => {
+                    const cssClass = result.status === 'PASS' ? 'pass' : 'fail';
+                    const icon = result.status === 'PASS' ? '✅' : '❌';
+                    const error = result.error ? ` - ${result.error}` : '';
+                    html += `<div class="test ${cssClass}">${icon} ${result.name}${error}</div>`;
+                });
+                resultsDiv.innerHTML = html;
+            }
+        }
+        
+        // Global test runner
+        window.testRunner = new TestRunner();
+        
+        // Sample tests
+        testRunner.test('DOM Manipulation', () => {
+            const div = document.createElement('div');
+            div.textContent = 'Test Element';
+            document.body.appendChild(div);
+            if (!div.textContent.includes('Test')) throw new Error('DOM test failed');
+        });
+        
+        testRunner.test('Math Operations', () => {
+            const result = 2 + 2;
+            if (result !== 4) throw new Error(`Expected 4, got ${result}`);
+        });
+        
+        testRunner.test('Async Operation', async () => {
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    resolve('success');
+                }, 100);
+            });
+        });
+        
+        testRunner.test('Local Storage', () => {
+            localStorage.setItem('test-key', 'test-value');
+            const value = localStorage.getItem('test-key');
+            if (value !== 'test-value') throw new Error('LocalStorage test failed');
+        });
+        
+        testRunner.test('API Simulation', async () => {
+            // Simulate an API call
+            const mockData = { status: 'ok', data: [1, 2, 3] };
+            if (mockData.status !== 'ok') throw new Error('API test failed');
+        });
+        
+        console.log('🎯 Test page loaded! Use testRunner.run() to execute tests');
+    </script>
+</body>
+</html>
