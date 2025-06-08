@@ -36,6 +36,12 @@ echo "    }"
 echo "  }"
 echo "}"
 echo ""
+echo "⚠️  Note: Manual testing requires proper clientInfo field:"
+echo "   {\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"initialize\","
+echo "    \"params\": {\"protocolVersion\": \"2024-11-05\","
+echo "              \"capabilities\": {\"roots\": {\"listChanged\": true}},"
+echo "              \"clientInfo\": {\"name\": \"test\", \"version\": \"1.0\"}}}"
+echo ""
 echo "🎯 Starting server..."
 
 # Start the server in STDIO mode
