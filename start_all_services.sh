@@ -67,70 +67,34 @@ mkdir -p logs
 start_mcp_server() {
     print_status "🐍 Starting MCP Server with auto-restart..."
     
-    # Use watchmedo for Python file watching if available
-    if command -v watchmedo &> /dev/null; then
-        # Start with double-fork daemon pattern for true independence
-        (
-            # First fork
-            if python3 -c "
-import os, sys
-pid = os.fork()
-if pid > 0:
-    sys.exit(0)  # Parent exits
-
-# Child continues
-os.setsid()  # Create new session
-
-# Second fork  
-pid = os.fork()
-if pid > 0:
-    sys.exit(0)  # First child exits
-
-# Second child (daemon) continues
-import subprocess
-subprocess.run([
-    'watchmedo', 'auto-restart', 
-    '--patterns=*.py', 
-    '--recursive', 
-    '--directory=.',
-    '--',
-    'python3', 'mcp_server.py'
-], stdout=open('logs/mcp_server.log', 'w'), stderr=subprocess.STDOUT)
-" 2>/dev/null; then
-                print_status "✅ MCP Server started with file watching (daemon mode)"
-            else
-                print_error "❌ Failed to start MCP Server daemon"
-            fi
-        ) &
+    # Use the proven start_mcp_auto_restart.sh script
+    if [ -f "start_mcp_auto_restart.sh" ]; then
+        # Make sure it's executable
+        chmod +x start_mcp_auto_restart.sh
+        
+        # Start the MCP server with auto-restart in background
+        nohup ./start_mcp_auto_restart.sh > logs/mcp_server.log 2>&1 &
+        MCP_PID=$!
+        disown
+        
+        # Give it time to start
+        sleep 5
+        
+        # Check if the auto-restart script is running
+        if kill -0 $MCP_PID 2>/dev/null; then
+            print_status "✅ MCP Server started with auto-restart script (PID: $MCP_PID)"
+        else
+            print_error "❌ MCP Server auto-restart script failed to start"
+        fi
     else
-        # Fallback to simple daemon
-        (
-            python3 -c "
-import os, sys
-pid = os.fork()
-if pid > 0:
-    sys.exit(0)
-
-os.setsid()
-
-pid = os.fork() 
-if pid > 0:
-    sys.exit(0)
-
-import subprocess
-subprocess.run(['python3', 'mcp_server.py'], 
-               stdout=open('logs/mcp_server.log', 'w'), 
-               stderr=subprocess.STDOUT)
-" 2>/dev/null
-        ) &
-        print_status "✅ MCP Server started (daemon mode)"
-        print_warning "⚠️  Install watchdog for auto-restart: pip install watchdog"
-    fi
-    
-    # Give it time to start and check
-    sleep 3
-    if ! pgrep -f "python.*mcp_server.py" > /dev/null; then
-        print_error "❌ MCP Server failed to start properly"
+        print_error "❌ start_mcp_auto_restart.sh not found"
+        print_warning "⚠️  Falling back to simple start..."
+        
+        # Simple fallback
+        nohup python3 mcp_server.py --port 8000 > logs/mcp_server.log 2>&1 &
+        MCP_PID=$!
+        disown
+        print_status "✅ MCP Server started (simple mode, no auto-restart)"
     fi
 }
 
@@ -243,3 +207,4 @@ print_status "🚀 All services are running in the background!"
 print_info "💡 Access the web interfaces:"
 echo "  • SocketIO Controller: http://localhost:3001"
 echo "  • MCP Server Health: http://localhost:8000/mcp"
+read -p "Press Enter to continue"

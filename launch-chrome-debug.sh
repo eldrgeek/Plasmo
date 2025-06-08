@@ -31,7 +31,6 @@ CHROME_ARGS=(
     --remote-allow-origins=*
     --no-first-run
     --no-default-browser-check
-    --disable-web-security
     --disable-features=VizDisplayCompositor
     --user-data-dir=./chrome-debug-profile
     --new-window

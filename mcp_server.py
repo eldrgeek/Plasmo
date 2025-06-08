@@ -153,10 +153,13 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('mcp_server.log'),
+        logging.FileHandler(os.path.expanduser('~/mcp_server.log')),  # Write to home directory
         logging.StreamHandler()
     ]
 )
+
+
+
 logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server
@@ -1298,6 +1301,68 @@ def execute_javascript_fixed(code: str, tab_id: str, connection_id: str = "local
         logger.error(f"Unexpected error in JavaScript execution: {e}")
         return {"success": False, "error": str(e)}
 
+@mcp.tool()
+def tell_bolt_to(prompt: str) -> Dict[str, Any]:
+    """
+    Direct automation for bolt.new - inject and submit a prompt
+    
+    Args:
+        prompt: The prompt to send to bolt.new
+        
+    Returns:
+        Dictionary with automation result
+    """
+    try:
+        # Find bolt.new tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        bolt_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            if "bolt.new" in tab.get("url", ""):
+                bolt_tab_id = tab.get("id")
+                break
+        
+        if not bolt_tab_id:
+            return {"success": False, "error": "No bolt.new tab found - please open bolt.new first"}
+        
+        # Execute automation via the global automateBolt function
+        automation_js = f"""
+        (async function() {{
+            if (typeof window.automateBolt !== 'function') {{
+                return {{success: false, message: "Extension not loaded - refresh bolt.new page"}};
+            }}
+            
+            const result = await window.automateBolt({json.dumps(prompt)});
+            return result;
+        }})();
+        """
+        
+        result = execute_javascript_fixed(automation_js, bolt_tab_id)
+        
+        if result.get("success"):
+            automation_result = result.get("value", {})
+            if automation_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Successfully told Bolt: {prompt}",
+                    "automation_result": automation_result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Automation failed: {automation_result.get('message', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
 # Add the remaining Chrome debugging functions here...
 # (console monitoring, breakpoints, etc.)
 
@@ -1308,20 +1373,20 @@ if __name__ == "__main__":
     parser.add_argument("--stdio", action="store_true", help="Use STDIO transport")
     
     args = parser.parse_args()
-    
-    print(f"""
-🚀 Consolidated MCP Server v{SERVER_VERSION} Starting
-==============================================
-✅ Enhanced Security: Path validation and input sanitization
-✅ Robust Error Handling: Comprehensive exception management
-✅ Chrome Debug Integration: Real-time monitoring and execution
-✅ Resource Management: Automatic cleanup and connection tracking
-✅ Unicode Safety: Emoji and special character support
-✅ Thread Safety: Protected shared resources
-""")
+    if not args.stdio:
+        print(f"""
+    🚀 Consolidated MCP Server v{SERVER_VERSION} Starting
+    ==============================================
+    ✅ Enhanced Security: Path validation and input sanitization
+    ✅ Robust Error Handling: Comprehensive exception management
+    ✅ Chrome Debug Integration: Real-time monitoring and execution
+    ✅ Resource Management: Automatic cleanup and connection tracking
+    ✅ Unicode Safety: Emoji and special character support
+    ✅ Thread Safety: Protected shared resources
+    """)
     
     if args.stdio:
-        print("🎯 Starting STDIO transport...")
+        # Don't print anything to stdout in STDIO mode - it breaks Claude Desktop
         logger.info("Starting Consolidated MCP Server in STDIO mode")
         mcp.run(transport="stdio")
     else:

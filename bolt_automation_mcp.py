@@ -77,17 +77,60 @@ class MCPBoltAutomation:
     // Inject the prompt
     const promptText = '{escaped_prompt}';
     
-    // Clear existing content and inject new prompt
+    // Focus the textarea first
     textarea.focus();
-    textarea.value = '';
+    await new Promise(resolve => setTimeout(resolve, 100));
     
-    // Use multiple methods to set the value
-    textarea.value = promptText;
-    textarea.textContent = promptText;
+    // Clear existing content by selecting all and "typing" over it
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
     
-    // Trigger input events
-    textarea.dispatchEvent(new Event('input', {{ bubbles: true }}));
+    // Simulate real user typing to clear and enter new content
+    // First, simulate Ctrl+A to select all
+    textarea.dispatchEvent(new KeyboardEvent('keydown', {{ 
+        key: 'a', 
+        code: 'KeyA', 
+        ctrlKey: true, 
+        bubbles: true 
+    }}));
+    
+    // Then simulate typing the new content character by character
+    textarea.value = ''; // Clear first
+    
+    for (let i = 0; i < promptText.length; i++) {{
+        const char = promptText[i];
+        
+        // Simulate keydown
+        textarea.dispatchEvent(new KeyboardEvent('keydown', {{
+            key: char,
+            code: `Key${{char.toUpperCase()}}`,
+            bubbles: true
+        }}));
+        
+        // Update value incrementally  
+        textarea.value = promptText.substring(0, i + 1);
+        
+        // Simulate input event (this is what React watches)
+        textarea.dispatchEvent(new Event('input', {{ 
+            bubbles: true,
+            data: char,
+            inputType: 'insertText'
+        }}));
+        
+        // Small delay between characters to mimic human typing
+        if (i % 10 === 0) {{ // Only delay every 10 chars for speed
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }}
+    }}
+    
+    // Final events to ensure React state is updated
     textarea.dispatchEvent(new Event('change', {{ bubbles: true }}));
+    
+    // Verify the content is set
+    console.log(`📝 Textarea content after typing: "${{textarea.value}}"`);
+    
+    // Small delay to let React process the state change
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     console.log(`✅ Injected prompt: "${{promptText.substring(0, 50)}}..."`);
     
@@ -97,44 +140,77 @@ class MCPBoltAutomation:
     // Find and click submit button
     const submitSelectors = [
         'button[type="submit"]',
-        'button:has(svg)',
+        'button:has(svg)', // Look for button with SVG icon (common in Bolt)
         'button[aria-label*="submit" i]',
         'button[aria-label*="send" i]',
         'button[data-testid*="submit" i]',
         'button[data-testid*="send" i]',
         '.submit-button',
-        '.send-button'
+        '.send-button',
+        'button.bg-', // Tailwind styled buttons
+        'form button', // Button inside form
     ];
     
     const submitTextPatterns = [
-        'submit', 'send', 'generate', 'create', 'build', 'go', '→', '▶'
+        'submit', 'send', 'generate', 'create', 'build', 'go', '→', '▶', '✓'
     ];
     
     let submitButton = null;
     
+    console.log('🔍 Looking for submit button...');
+    
     // Try specific selectors first
     for (const selector of submitSelectors) {{
-        const button = document.querySelector(selector);
-        if (button && !button.disabled) {{
-            submitButton = button;
-            console.log(`✅ Found submit button with selector: ${{selector}}`);
-            break;
+        const buttons = document.querySelectorAll(selector);
+        console.log(`Trying selector: ${{selector}} - found ${{buttons.length}} elements`);
+        
+        for (const button of buttons) {{
+            if (button && !button.disabled && button.offsetParent !== null) {{ // Check if visible
+                submitButton = button;
+                console.log(`✅ Found submit button with selector: ${{selector}}`);
+                break;
+            }}
         }}
+        if (submitButton) break;
     }}
     
     // If no specific selector worked, try text-based search
     if (!submitButton) {{
+        console.log('🔍 Trying text-based button search...');
         const allButtons = document.querySelectorAll('button');
+        console.log(`Found ${{allButtons.length}} total buttons`);
+        
         for (const button of allButtons) {{
             const buttonText = button.textContent?.toLowerCase().trim() || '';
             const hasSubmitText = submitTextPatterns.some(pattern => 
                 buttonText.includes(pattern.toLowerCase())
             );
             
-            if (hasSubmitText && !button.disabled) {{
+            console.log(`Button text: "${{buttonText}}" - hasSubmitText: ${{hasSubmitText}} - disabled: ${{button.disabled}} - visible: ${{button.offsetParent !== null}}`);
+            
+            if (hasSubmitText && !button.disabled && button.offsetParent !== null) {{
                 submitButton = button;
                 console.log(`✅ Found submit button by text: "${{buttonText}}"`);
                 break;
+            }}
+        }}
+    }}
+    
+    // Last resort: look for any button near the textarea
+    if (!submitButton) {{
+        console.log('🔍 Looking for any button near textarea...');
+        const nearbyButtons = document.querySelectorAll('button');
+        for (const button of nearbyButtons) {{
+            if (!button.disabled && button.offsetParent !== null) {{
+                const rect = button.getBoundingClientRect();
+                const textareaRect = textarea.getBoundingClientRect();
+                
+                // Check if button is reasonably close to textarea
+                if (Math.abs(rect.top - textareaRect.bottom) < 100) {{
+                    submitButton = button;
+                    console.log(`✅ Found nearby button: "${{button.textContent?.trim() || 'no text'}}"`);
+                    break;
+                }}
             }}
         }}
     }}
@@ -152,12 +228,40 @@ class MCPBoltAutomation:
     submitButton.click();
     console.log('✅ Clicked submit button');
     
-    return {{ 
+    // Wait a bit and check for any response indicators
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Look for signs that Bolt is processing
+    const responseIndicators = [
+        '[class*="loading"]',
+        '[class*="generating"]',
+        '[class*="thinking"]',
+        '.prose', // Response content area
+        'pre code', // Code blocks
+        '[role="article"]'
+    ];
+    
+    let processingDetected = false;
+    for (const selector of responseIndicators) {{
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {{
+            console.log(`✅ Found response indicator: ${{selector}} (${{elements.length}} elements)`);
+            processingDetected = true;
+            break;
+        }}
+    }}
+    
+    const result = {{ 
         success: true, 
         promptInjected: true, 
         buttonClicked: true,
+        processingDetected: processingDetected,
+        textareaValue: textarea.value,
         message: 'Automation completed successfully'
     }};
+    
+    console.log('🎉 Final result:', JSON.stringify(result, null, 2));
+    return result;
 }})();
 """
 
@@ -168,20 +272,30 @@ class MCPBoltAutomation:
             
         tabs = tabs_data.get("tabs", [])
         
-        bolt_patterns = [
-            "bolt.new",
-            "bolt.diy", 
-            "stackblitz.com",
-            "Bolt"
-        ]
+        # Look for the actual bolt.new page (not DevTools)
+        for tab in tabs:
+            title = tab.get("title", "")
+            url = tab.get("url", "")
+            
+            # Must be the actual bolt.new URL, not DevTools
+            if "https://bolt.new" in url and "devtools://" not in url:
+                print(f"✅ Found Bolt tab: {title} - {url}")
+                return tab.get("id")
+        
+        # Fallback: look for other bolt-related patterns (but not DevTools)
+        bolt_patterns = ["stackblitz.com", "bolt.diy"]
         
         for tab in tabs:
             title = tab.get("title", "").lower()
             url = tab.get("url", "").lower()
             
+            # Skip DevTools tabs
+            if "devtools://" in url:
+                continue
+                
             for pattern in bolt_patterns:
-                if pattern.lower() in url or pattern.lower() in title:
-                    print(f"✅ Found Bolt tab: {tab.get('title')} - {tab.get('url')}")
+                if pattern in url or (pattern in title and "devtools" not in title):
+                    print(f"✅ Found Bolt-related tab: {tab.get('title')} - {tab.get('url')}")
                     return tab.get("id")
         
         return None
