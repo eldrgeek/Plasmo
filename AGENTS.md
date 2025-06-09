@@ -141,6 +141,25 @@ The AI assistant can:
 - Monitor console logs continuously during development
 - Execute small test scripts to verify extension functionality
 - Use parallel tool calls for efficiency when gathering multiple data points
+- **🆕 Use step-by-step MCP tool execution** rather than direct Python scripts for E2E workflows
+- **🆕 Always use Claude.ai-specific DevTools URLs** for proper debugging context
+
+### End-to-End Testing Workflow **[NEW - PROVEN]**
+The **step-by-step MCP tool approach** has proven 100% successful for orchestration testing:
+
+1. **Health Check**: `health()` - Verify MCP server operational status
+2. **Chrome Connection**: `connect_to_chrome()` - Establish debug session  
+3. **Tab Discovery**: `get_chrome_tabs()` - Find target AI service tabs
+4. **DevTools Access**: Use tab-specific DevTools URLs (`chrome-devtools://devtools/bundled/devtools_app.html?ws=localhost:9222/devtools/page/{TAB_ID}`)
+5. **Prompt Injection**: `execute_javascript_fixed()` - Inject prompts into contenteditable divs
+6. **Response Extraction**: `execute_javascript_fixed()` - Read AI service responses
+
+**Critical Success Factors**:
+- Never use standalone Python scripts that attempt MCP tool calls
+- Always use MCP tools through Cursor interface, step by step
+- Target specific tabs with proper DevTools URLs
+- Use contenteditable manipulation for prompt injection
+- Allow response time before extraction (3-5 seconds)
 
 ### Error Handling
 - Always check Chrome connection status before debugging operations
@@ -224,6 +243,34 @@ Common extension events that flood WebSocket (IGNORE these):
 - `Page.frameNavigated`
 - `Network.requestWillBeSent`
 - `Network.responseReceived`
+
+### Claude.ai Automation Patterns **[NEW - PROVEN]**
+**Working selectors and methods for Claude.ai interaction**:
+
+```javascript
+// Proven prompt injection method
+const promptDiv = document.querySelector('div[contenteditable="true"][data-testid*="chat"], div[contenteditable="true"] p');
+if (promptDiv) {
+    promptDiv.textContent = 'Your prompt here';
+    
+    // Trigger input events
+    promptDiv.dispatchEvent(new Event('input', { bubbles: true }));
+    promptDiv.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// Proven send button method
+const sendButton = document.querySelector('button[type="submit"], button[aria-label*="Send"], button:has(svg)');
+if (sendButton && !sendButton.disabled) {
+    sendButton.click();
+}
+
+// Proven response extraction method
+setTimeout(() => {
+    const responses = document.querySelectorAll('div[data-is-streaming="false"]');
+    const lastResponse = responses[responses.length - 1];
+    return lastResponse ? lastResponse.textContent : 'No response found';
+}, 3000);
+```
 
 ### Continuous Testing Integration
 **Workflow**: File change → Test trigger → CDP execution → Real-time results

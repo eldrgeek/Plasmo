@@ -83,7 +83,7 @@ start_mcp_server() {
         # Check if the auto-restart script is running
         if kill -0 $MCP_PID 2>/dev/null; then
             print_status "✅ MCP Server started with auto-restart script (PID: $MCP_PID)"
-        else
+            else
             print_error "❌ MCP Server auto-restart script failed to start"
         fi
     else
