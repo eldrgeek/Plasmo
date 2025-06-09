@@ -1430,6 +1430,161 @@ def tell_bolt_to(prompt: str) -> Dict[str, Any]:
     except Exception as e:
         return {"success": False, "error": f"Exception occurred: {str(e)}"}
 
+@mcp.tool()
+def tell_chatgpt_to(prompt: str) -> Dict[str, Any]:
+    """
+    Direct automation for ChatGPT - inject and submit a prompt
+    
+    Args:
+        prompt: The prompt to send to ChatGPT
+        
+    Returns:
+        Dictionary with automation result
+    """
+    try:
+        # Find ChatGPT tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        chatgpt_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            tab_url = tab.get("url", "")
+            if "chat.openai.com" in tab_url or "chatgpt.com" in tab_url:
+                chatgpt_tab_id = tab.get("id")
+                break
+        
+        if not chatgpt_tab_id:
+            return {"success": False, "error": "No ChatGPT tab found - please open ChatGPT first"}
+        
+        # Execute automation via the global automateChatGPT function
+        automation_js = f"""
+        (async function() {{
+            if (typeof window.automateChatGPT !== 'function') {{
+                return {{success: false, message: "ChatGPT automation extension not loaded - refresh ChatGPT page"}};
+            }}
+            
+            const result = await window.automateChatGPT({json.dumps(prompt)});
+            return result;
+        }})();
+        """
+        
+        result = execute_javascript_fixed(automation_js, chatgpt_tab_id)
+        
+        if result.get("success"):
+            automation_result = result.get("value", {})
+            if automation_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Successfully told ChatGPT: {prompt}",
+                    "automation_result": automation_result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"ChatGPT automation failed: {automation_result.get('message', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
+@mcp.tool()
+def get_chatgpt_response() -> Dict[str, Any]:
+    """
+    Extract the latest response from ChatGPT
+    
+    Returns:
+        Dictionary with ChatGPT response or error
+    """
+    try:
+        # Find ChatGPT tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        chatgpt_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            tab_url = tab.get("url", "")
+            if "chat.openai.com" in tab_url or "chatgpt.com" in tab_url:
+                chatgpt_tab_id = tab.get("id")
+                break
+        
+        if not chatgpt_tab_id:
+            return {"success": False, "error": "No ChatGPT tab found"}
+        
+        # Extract response using JavaScript
+        extraction_js = """
+        (function() {
+            // Multiple selectors for ChatGPT responses
+            const responseSelectors = [
+                '[data-message-author-role="assistant"]',
+                '.prose',
+                '[data-testid*="conversation-turn"]',
+                '.markdown',
+                '.message'
+            ];
+            
+            let latestResponse = null;
+            
+            for (const selector of responseSelectors) {
+                const elements = document.querySelectorAll(selector);
+                if (elements.length > 0) {
+                    // Get the last element (most recent response)
+                    latestResponse = elements[elements.length - 1];
+                    break;
+                }
+            }
+            
+            if (!latestResponse) {
+                return {success: false, error: "No ChatGPT response found"};
+            }
+            
+            const responseText = latestResponse.textContent || latestResponse.innerText || "";
+            
+            if (!responseText.trim()) {
+                return {success: false, error: "ChatGPT response is empty"};
+            }
+            
+            return {
+                success: true,
+                response: responseText.trim(),
+                length: responseText.length,
+                preview: responseText.substring(0, 100) + (responseText.length > 100 ? "..." : "")
+            };
+        })();
+        """
+        
+        result = execute_javascript_fixed(extraction_js, chatgpt_tab_id)
+        
+        if result.get("success"):
+            extraction_result = result.get("value", {})
+            if extraction_result.get("success"):
+                return {
+                    "success": True,
+                    "response": extraction_result.get("response"),
+                    "length": extraction_result.get("length"),
+                    "preview": extraction_result.get("preview"),
+                    "message": "✅ Successfully extracted ChatGPT response"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Response extraction failed: {extraction_result.get('error', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
 # =================================================================
 # ORCHESTRATION TOOLS - Multi-LLM Coordination
 # =================================================================
