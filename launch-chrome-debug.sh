@@ -13,16 +13,15 @@ pkill -f "chrome-debug-profile" 2>/dev/null
 # Create profile directory if it doesn't exist
 mkdir -p chrome-debug-profile
 
-# Try different Chrome executable paths based on OS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    CHROME_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Linux
-    CHROME_PATH=$(which google-chrome || which chrome || which chromium || which chromium-browser)
-else
-    # Windows (Git Bash/WSL)
-    CHROME_PATH="chrome.exe"
+# Source platform detection utility
+source "$(dirname "$0")/platform_detect.sh"
+init_platform
+
+# Use the detected Chrome path
+if ! find_chrome_executable; then
+    echo "❌ Chrome executable not found!"
+    echo "Please ensure Chrome is installed and accessible."
+    exit 1
 fi
 
 # Chrome launch arguments

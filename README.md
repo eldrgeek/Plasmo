@@ -33,6 +33,24 @@ my-plasmo-extension/
 
 - Node.js (v16 or higher)
 - npm or yarn
+- Google Chrome or Chromium
+
+### Platform Support
+
+#### 🍎 macOS (Native)
+Follow the standard setup below.
+
+#### 🐧 Linux (Full Support)
+**Quick Linux Setup:**
+```bash
+git clone <your-repo-url>
+cd my-plasmo-extension
+chmod +x linux_setup.sh && ./linux_setup.sh
+```
+See `LINUX_QUICK_START.md` for details.
+
+#### 🪟 Windows (Coming Soon)
+Windows support is planned but not yet implemented.
 
 ### Installation
 
@@ -45,11 +63,15 @@ my-plasmo-extension/
 2. Install dependencies:
    ```bash
    npm install
+   # or for Linux users after running linux_setup.sh:
+   pnpm install
    ```
 
 3. Start development server:
    ```bash
    npm run dev
+   # or:
+   pnpm dev
    ```
 
 4. Open Chrome and navigate to `chrome://extensions/`
