@@ -1,10 +1,148 @@
 #!/bin/bash
 
 # Start All Development Services
-# Starts MCP server, Plasmo dev, SocketIO server with auto-restart and real-time monitoring
+# Handles initial setup, dependency installation, and service startup with real-time monitoring
 
 echo "🚀 Starting All Development Services"
 echo "====================================="
+
+# Function to check if we're in a virtual environment
+check_venv() {
+    if [[ "$VIRTUAL_ENV" != "" ]]; then
+        return 0  # In venv
+    else
+        return 1  # Not in venv
+    fi
+}
+
+# Function to setup Python virtual environment and dependencies
+setup_python_env() {
+    echo "🐍 Setting up Python environment..."
+    
+    # Check if virtual environment exists
+    if [ ! -d "venv" ]; then
+        echo "📦 Creating Python virtual environment..."
+        python3 -m venv venv
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to create virtual environment"
+            echo "💡 Make sure python3 is installed: brew install python3"
+            exit 1
+        fi
+        echo "✅ Virtual environment created"
+    else
+        echo "✅ Virtual environment already exists"
+    fi
+    
+    # Activate virtual environment if not already active
+    if ! check_venv; then
+        echo "🔌 Activating virtual environment..."
+        source venv/bin/activate
+        echo "✅ Virtual environment activated"
+    else
+        echo "✅ Already in virtual environment"
+    fi
+    
+    # Check if requirements are installed
+    if [ -f "requirements.txt" ]; then
+        echo "📋 Checking Python dependencies..."
+        
+        # Quick check - if key packages are available, skip pip install
+        if python3 -c "import fastmcp, websockets, aiohttp, pychrome, requests" 2>/dev/null; then
+            echo "✅ Python dependencies already installed"
+        else
+            echo "📦 Installing Python dependencies..."
+            pip install -r requirements.txt
+            if [ $? -ne 0 ]; then
+                echo "❌ Failed to install Python dependencies"
+                exit 1
+            fi
+            echo "✅ Python dependencies installed"
+        fi
+    else
+        echo "⚠️  requirements.txt not found, skipping Python dependencies"
+    fi
+}
+
+# Function to setup Node/TypeScript dependencies
+setup_node_env() {
+    echo "📦 Setting up Node.js environment..."
+    
+    # Check if pnpm is installed
+    if ! command -v pnpm &> /dev/null; then
+        echo "❌ pnpm not found"
+        echo "💡 Install pnpm: npm install -g pnpm"
+        exit 1
+    fi
+    
+    # Check if node_modules exists and has content
+    if [ ! -d "node_modules" ] || [ -z "$(ls -A node_modules 2>/dev/null)" ]; then
+        echo "📦 Installing Node.js dependencies..."
+        pnpm install
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install Node.js dependencies"
+            exit 1
+        fi
+        echo "✅ Node.js dependencies installed"
+    else
+        echo "✅ Node.js dependencies already installed"
+    fi
+    
+    # Check if plasmo is available
+    if [ -f "node_modules/.bin/plasmo" ] || command -v plasmo &> /dev/null; then
+        echo "✅ Plasmo framework ready"
+    else
+        echo "⚠️  Plasmo not found in node_modules, but continuing..."
+    fi
+}
+
+# Function to verify required files exist
+verify_requirements() {
+    echo "🔍 Verifying project requirements..."
+    
+    local missing_files=()
+    
+    # Check for essential files
+    [ ! -f "package.json" ] && missing_files+=("package.json")
+    [ ! -f "mcp_server.py" ] && missing_files+=("mcp_server.py")
+    [ ! -f "start_mcp_auto_restart.sh" ] && missing_files+=("start_mcp_auto_restart.sh")
+    
+    if [ ${#missing_files[@]} -ne 0 ]; then
+        echo "❌ Missing required files:"
+        printf '   • %s\n' "${missing_files[@]}"
+        echo "💡 Make sure you're in the correct Plasmo project directory"
+        exit 1
+    fi
+    
+    echo "✅ All required files present"
+}
+
+# Function to display setup summary
+setup_summary() {
+    echo ""
+    echo "🎯 Environment Setup Complete!"
+    echo "=============================="
+    echo "✅ Python virtual environment ready"
+    echo "✅ Python dependencies installed"
+    echo "✅ Node.js dependencies installed"
+    echo "✅ Project files verified"
+    echo ""
+    echo "🚀 Starting development services..."
+    echo ""
+}
+
+# Main setup function
+initial_setup() {
+    echo "🔧 Initial Environment Setup"
+    echo "=============================="
+    
+    verify_requirements
+    setup_python_env
+    setup_node_env
+    setup_summary
+}
+
+# Run initial setup
+initial_setup
 
 # Create logs directory
 mkdir -p logs
@@ -32,6 +170,12 @@ start_mcp_server() {
     fi
     
     chmod +x start_mcp_auto_restart.sh
+    
+    # Ensure we're in the virtual environment for the MCP server
+    if ! check_venv; then
+        source venv/bin/activate
+    fi
+    
     nohup ./start_mcp_auto_restart.sh > logs/mcp_server.log 2>&1 &
     MCP_PID=$!
     echo "✅ MCP Server started with auto-restart (PID: $MCP_PID)"
@@ -82,6 +226,11 @@ start_test_runner() {
     if [ ! -f "continuous_test_runner.py" ]; then
         echo "⚠️  continuous_test_runner.py not found, skipping..."
         return 0
+    fi
+    
+    # Ensure we're in the virtual environment for the test runner
+    if ! check_venv; then
+        source venv/bin/activate
     fi
     
     nohup python3 continuous_test_runner.py > logs/continuous_testing.log 2>&1 &

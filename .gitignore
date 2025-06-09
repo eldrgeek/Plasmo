@@ -94,6 +94,7 @@ jspm_packages/
 *.tsbuildinfo
 chrome-debug-profile/*
 __pycache__/*
+venv/
 # MCP Server files (uncomment if you don't want to track them)
 # mcp_server.py
 # requirements.txt

@@ -2,15 +2,49 @@
 
 ## Overview
 
-The `start_all.sh` script provides a comprehensive way to start all development services with auto-restart functionality.
+The `start_all.sh` script provides a comprehensive, zero-configuration way to start all development services with automatic dependency installation and real-time monitoring.
 
-## Usage
+## 🚀 One-Command Setup
 
 ```bash
 ./start_all.sh
 ```
 
-## Services Started
+**For first-time users**: The script automatically handles all setup requirements!
+
+## 🔧 Automatic Environment Setup
+
+### First Run (New Clone)
+When you first run the script on a fresh clone, it will automatically:
+
+1. **Verify Requirements**: Check for essential project files
+2. **Python Environment**: 
+   - Create virtual environment (`venv/`) if needed
+   - Activate virtual environment
+   - Install Python dependencies from `requirements.txt`
+3. **Node.js Environment**:
+   - Verify `pnpm` is available
+   - Install TypeScript/Node dependencies with `pnpm install`
+   - Verify Plasmo framework is ready
+4. **Start Services**: Launch all development services with monitoring
+
+### Subsequent Runs
+On subsequent runs, the script will:
+- ✅ **Skip setup** if dependencies are already installed
+- ✅ **Auto-activate** the virtual environment
+- ✅ **Start services** immediately
+
+## 📋 Prerequisites
+
+The script handles most setup automatically, but you need:
+
+- **Python 3**: `brew install python3` (macOS) or equivalent
+- **pnpm**: `npm install -g pnpm`
+- **Git**: For cloning the repository
+
+Everything else is installed automatically!
+
+## 🎯 Services Started
 
 ### 1. **MCP Server** (Port 8000)
 - **Auto-restart**: Monitors `*.py` files via `start_mcp_auto_restart.sh`
@@ -32,71 +66,82 @@ The `start_all.sh` script provides a comprehensive way to start all development 
 - **Purpose**: Automated testing and validation
 - **Watches**: `*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.html`, `*.css`, `*.py`
 
-## Auto-Restart Features
+## 🎭 Real-Time Monitoring Features
 
-- **MCP Server**: Restarts within 2-5 seconds of Python file changes
-- **Plasmo Dev**: Built-in hot reload for instant extension updates
-- **SocketIO Server**: Nodemon-based restart for server and injector changes
-- **Test Runner**: Automatic test execution on code changes
+- **Color-Coded Output**: Each service has its own color for easy identification
+- **Timestamped Logs**: Every message shows the exact time
+- **Restart Notifications**: Automatically detects and announces service restarts
+- **Live Log Streaming**: Shows real-time output from all services in one terminal
 
-## What It Does
+## 💻 Development Workflow
 
-1. **Cleanup**: Stops any existing service instances
-2. **Sequential Startup**: Starts services with proper timing delays
-3. **Process Management**: Tracks PIDs and creates logs
-4. **Status Reporting**: Shows all running services and endpoints
+### For New Contributors
+1. **Clone the repository**
+   ```bash
+   git clone <repo-url>
+   cd Plasmo
+   ```
 
-## Log Files
+2. **One command to start everything**
+   ```bash
+   ./start_all.sh
+   ```
+   
+3. **The script automatically**:
+   - Creates Python virtual environment
+   - Installs all Python dependencies
+   - Installs all Node.js dependencies
+   - Starts all services with monitoring
+   - Shows real-time logs with restart detection
 
-All services create detailed logs in the `logs/` directory:
-- `logs/mcp_server.log` - MCP server output and restarts
-- `logs/plasmo_dev.log` - Extension build and hot reload events
-- `logs/socketio_server.log` - Socket.IO server and automation logs
-- `logs/continuous_testing.log` - Test execution results
-
-## Stopping Services
-
-**Option 1**: Use the provided command:
-```bash
-pkill -f 'start_mcp_auto_restart|mcp_server.py|plasmo.*dev|socketio_server.js|continuous_test_runner'
-```
-
-**Option 2**: Individual service stopping:
-```bash
-pkill -f "mcp_server.py"           # Stop MCP server
-pkill -f "plasmo.*dev"             # Stop Plasmo dev server
-pkill -f "socketio_server.js"      # Stop SocketIO server
-pkill -f "continuous_test_runner"  # Stop test runner
-```
-
-## Development Workflow
-
-1. **Start**: `./start_all.sh` - Everything starts with auto-restart
+### For Regular Development
+1. **Start**: `./start_all.sh` - Skips setup, starts services immediately
 2. **Develop**: Make changes to any files - services auto-restart/reload
 3. **Debug**: Use Chrome Debug Protocol tools via MCP server
 4. **Test**: Continuous testing runs automatically
-5. **Stop**: Use pkill commands when done
+5. **Stop**: Ctrl+C stops everything gracefully
 
-## Integration Benefits
+## 🔍 Environment Detection
 
-- **Seamless Development**: All services coordinate automatically
-- **Chrome Extension**: Live updates via Plasmo dev server
-- **Automation**: "Tell Bolt to..." commands via MCP server
-- **Real-time Control**: SocketIO for interactive automation
-- **Quality Assurance**: Continuous testing ensures code quality
+The script intelligently detects your environment:
 
-## Health Checks
+- **Virtual Environment**: Auto-creates and activates `venv/`
+- **Dependencies**: Checks if packages are installed before installing
+- **Project Structure**: Verifies you're in the correct directory
+- **Service State**: Cleans up existing processes before starting
 
-- **MCP Server**: `http://localhost:8000/mcp`
-- **SocketIO Controller**: `http://localhost:3001`
-- **Extension**: Automatically reloads in Chrome via Plasmo
-- **Tests**: Results visible in `logs/continuous_testing.log`
+## 📁 Project Structure
 
-## Troubleshooting
+After setup, your project will have:
+```
+Plasmo/
+├── venv/                    # Python virtual environment (auto-created)
+├── node_modules/            # Node.js dependencies (auto-installed)
+├── logs/                    # Service logs (auto-created)
+├── requirements.txt         # Python dependencies
+├── package.json            # Node.js dependencies
+├── start_all.sh            # This startup script
+└── ...                     # Project files
+```
 
-- **Port conflicts**: Services will clean up existing instances
-- **Missing dependencies**: Script will install nodemon if needed
-- **File not found**: Optional services (like SocketIO) will be skipped gracefully
-- **Permission issues**: Make sure scripts are executable (`chmod +x`)
+## 🚨 Troubleshooting
 
-This comprehensive setup enables full-stack development with automated tooling, real-time updates, and seamless Chrome extension debugging. 
+### Common Issues
+- **Python not found**: Install Python 3 (`brew install python3`)
+- **pnpm not found**: Install pnpm (`npm install -g pnpm`)
+- **Permission denied**: Make script executable (`chmod +x start_all.sh`)
+- **Port conflicts**: Script automatically cleans up existing instances
+
+### Error Messages
+The script provides helpful error messages and suggestions for resolving issues.
+
+## ✨ Benefits
+
+- **Zero Configuration**: Works out of the box for new contributors
+- **Intelligent Setup**: Only installs what's needed
+- **Full Visibility**: Real-time monitoring of all services
+- **Clean Environment**: Proper virtual environment isolation
+- **Fast Iteration**: Skip setup on subsequent runs
+- **Error Prevention**: Validates environment before starting
+
+This comprehensive setup enables anyone to clone the repository and have a fully functional development environment running within minutes! 🎯 
