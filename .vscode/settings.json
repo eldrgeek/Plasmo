@@ -1,0 +1,31 @@
+{
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "task.allowAutomaticTasks": "on",
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/node_modules": true,
+        "**/.plasmo": true,
+        "**/build": true,
+        "**/dist": true,
+        "chrome-debug-profile/**": true,
+        "*.backup": true
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/node_modules": true,
+        "**/.plasmo": true,
+        "**/build": true,
+        "**/dist": true,
+        "chrome-debug-profile/**": true,
+        "pnpm-lock.yaml": true
+    },
+    "python.defaultInterpreter": "python3",
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "terminal.integrated.env.osx": {
+        "PLASMO_AUTO_RELOAD": "true"
+    }
+} 

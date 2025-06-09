@@ -1,0 +1,42 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug MCP Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/mcp_server_consolidated.py",
+            "args": [
+                "--port",
+                "8000"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Launch Chrome for Extension Debug",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/launch-chrome-debug.sh",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Debug Extension + MCP",
+            "configurations": [
+                "Debug MCP Server",
+                "Launch Chrome for Extension Debug"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "debug",
+                "order": 1
+            }
+        }
+    ]
+}

@@ -1,0 +1,94 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start All Services",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "${workspaceFolder}/start_all.sh"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PATH": "${env:PATH}",
+                    "PYTHONPATH": "${workspaceFolder}"
+                }
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "isBackground": false,
+            "problemMatcher": [],
+            "runOptions": {
+                "runOn": "folderOpen"
+            },
+            "detail": "Starts All services for Cursor integration"
+        },
+        {
+            "label": "Stop All Services",
+            "type": "shell",
+            "command": "${workspaceFolder}/stop_all_services.sh",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Stops all services: MCP server, SocketIO server, and Plasmo dev server"
+        },
+        {
+            "label": "Check Services Status",
+            "type": "shell",
+            "command": "${workspaceFolder}/check_services.sh",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Check status of all development services"
+        },
+        {
+            "label": "Restart All Services",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Stop All Services",
+                "Start All Services"
+            ],
+            "group": "build",
+            "detail": "Restarts all services: MCP server, SocketIO server, and Plasmo dev server"
+        },
+        {
+            "label": "Run MCP Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "test_mcp_protocol.py",
+                "--verbose"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Run tests that go through MCP protocol"
+        }
+    ]
+}
