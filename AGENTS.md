@@ -150,9 +150,15 @@ The **step-by-step MCP tool approach** has proven 100% successful for orchestrat
 1. **Health Check**: `health()` - Verify MCP server operational status
 2. **Chrome Connection**: `connect_to_chrome()` - Establish debug session  
 3. **Tab Discovery**: `get_chrome_tabs()` - Find target AI service tabs
-4. **DevTools Access**: Use tab-specific DevTools URLs (`chrome-devtools://devtools/bundled/devtools_app.html?ws=localhost:9222/devtools/page/{TAB_ID}`)
+4. **DevTools Access**: Opens in separate tab via `chrome-devtools://devtools/bundled/devtools_app.html?ws=localhost:9222/devtools/page/{TAB_ID}`
 5. **Prompt Injection**: `execute_javascript_fixed()` - Inject prompts into contenteditable divs
 6. **Response Extraction**: `execute_javascript_fixed()` - Read AI service responses
+
+**⚠️ DevTools Setup Requirements**: 
+- **Popup Blocker**: Must allow popups on target site (major issue if blocked)
+- **Automatic Docking**: Chrome security prevents programmatic sidebar docking
+- **Manual Docking**: Use ⋮ → Dock side → Dock to right after DevTools opens
+- **Alternative**: Use MCP server's console monitoring instead of DevTools UI
 
 **Critical Success Factors**:
 - Never use standalone Python scripts that attempt MCP tool calls
@@ -293,6 +299,7 @@ File Watcher → Debounce → CDP Test → SocketIO API → Web UI Update
 - **Chrome debug unavailable**: Verify Chrome launched with debug flags
 - **Extension not found**: Ensure extension is loaded and service worker is active
 - **WebSocket errors**: Check `--remote-allow-origins=*` flag is set
+- **🆕 DevTools won't open**: Check popup blocker - must allow popups on target site
 - **🆕 CDP command timeouts**: Ensure message filtering by command ID is implemented
 - **🆕 "Failed to enable Runtime domain"**: Close DevTools on target tab before CDP operations
 - **🆕 Extension message noise**: Filter WebSocket messages, ignore extension context events
