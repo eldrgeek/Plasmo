@@ -80,6 +80,11 @@ Windows support is planned but not yet implemented.
 
 6. Click "Load unpacked" and select the `build/chrome-mv3-dev` folder
 
+7. (Optional) organize Cursor rules:
+   ```bash
+   ./scripts/move_project_rules.sh
+   ```
+
 ### Building for Production
 
 ```bash
