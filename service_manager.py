@@ -38,6 +38,7 @@ class ServiceType(Enum):
     MCP_SERVER = "mcp_server"  
     PLASMO_DEV = "plasmo_dev"
     CONTINUOUS_TESTS = "continuous_tests"
+    DASHBOARD = "dashboard"
 
 class ImplementationType(Enum):
     JAVASCRIPT = "javascript"
@@ -135,11 +136,23 @@ class ServiceManager:
             env_vars={"PYTHONPATH": str(self.base_dir)}
         )
         
+        # Dashboard Server Configuration
+        dashboard_config = ServiceConfig(
+            name="dashboard",
+            service_type=ServiceType.DASHBOARD,
+            implementation=ImplementationType.PYTHON,
+            command=[sys.executable, "dashboard_server.py"],
+            port=8080,
+            log_file="dashboard.log",
+            env_vars={"PYTHONPATH": str(self.base_dir)}
+        )
+        
         self.service_configs = {
             "socketio": socketio_config,
             "mcp": mcp_config,
             "plasmo": plasmo_config,
-            "tests": tests_config
+            "tests": tests_config,
+            "dashboard": dashboard_config
         }
         
     def print_status(self, message: str, status_type: str = "info"):
@@ -191,6 +204,9 @@ class ServiceManager:
                         return True, proc.info['pid']
                 elif service_name == "tests":
                     if "continuous_test_runner.py" in cmdline_str:
+                        return True, proc.info['pid']
+                elif service_name == "dashboard":
+                    if "dashboard_server.py" in cmdline_str:
                         return True, proc.info['pid']
                         
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -293,7 +309,7 @@ class ServiceManager:
             
     async def start_all_services_async(self) -> Dict[str, bool]:
         """Start all services in parallel with smart ready detection"""
-        services = ["mcp", "socketio", "plasmo", "tests"]
+        services = ["mcp", "socketio", "dashboard", "plasmo", "tests"]
         
         self.print_status("🚀 Starting all services in parallel...", "header")
         
@@ -356,6 +372,8 @@ class ServiceManager:
                         should_kill = "plasmo dev" in cmdline_str or "pnpm dev" in cmdline_str
                     elif service_name == "tests":
                         should_kill = "continuous_test_runner.py" in cmdline_str
+                    elif service_name == "dashboard":
+                        should_kill = "dashboard_server.py" in cmdline_str
                         
                     if should_kill:
                         process = psutil.Process(proc.info['pid'])
