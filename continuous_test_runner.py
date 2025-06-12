@@ -17,6 +17,8 @@ from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import logging
+from aiohttp import web, ClientSession
+import threading
 
 # Configure logging
 logging.basicConfig(
@@ -339,6 +341,26 @@ class FileChangeHandler(FileSystemEventHandler):
             
         await self.test_runner.run_test_cycle(f"file_change:{Path(file_path).name}")
 
+async def health_handler(request):
+    """Health check endpoint"""
+    return web.json_response({
+        'status': 'healthy',
+        'service': 'continuous_test_runner',
+        'timestamp': datetime.now().isoformat(),
+        'watching': str(Path.cwd())
+    })
+
+async def start_health_server():
+    """Start health check server on port 8082"""
+    app = web.Application()
+    app.router.add_get('/health', health_handler)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', 8082)
+    await site.start()
+    logger.info("🔍 Health server started on http://localhost:8082/health")
+
 async def main():
     """Main continuous testing loop"""
     test_runner = TestRunner()
@@ -347,6 +369,10 @@ async def main():
     Path('logs').mkdir(exist_ok=True)
     
     logger.info("🚀 Starting Continuous Test Runner")
+    
+    # Start health server
+    await start_health_server()
+    
     logger.info(f"📁 Watching: {Path.cwd()}")
     logger.info(f"🌐 Chrome Debug: localhost:{test_runner.chrome_debug_port}")
     logger.info(f"📡 SocketIO Server: {test_runner.socketio_server}")
