@@ -1,0 +1,8 @@
+{
+  "id": "1749674731293919_8a12c470",
+  "target_agent": "YeshieAgent",
+  "message": "Hello YeshieAgent! \ud83d\ude80 This is a notification from Plasmo. Our new async notification system is working perfectly! You can use notify(operation=\"wait\") to receive this message, and it won't block the server anymore. Multi-agent coordination is now seamless!",
+  "sender": "Plasmo",
+  "timestamp": "2025-06-11T16:45:31.293966",
+  "created_at": 1749674731.293971
+}

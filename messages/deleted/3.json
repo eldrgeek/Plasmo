@@ -1,0 +1,11 @@
+{
+  "id": 3,
+  "to": "Plasmo",
+  "from": "Plasmo",
+  "subject": "Test from Cursor",
+  "message": "This message was sent through the direct interface!",
+  "timestamp": "2025-06-11T11:05:07.371954",
+  "read": true,
+  "reply_to": null,
+  "read_timestamp": "2025-06-11T17:42:38.144603"
+}

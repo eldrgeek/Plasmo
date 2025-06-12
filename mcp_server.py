@@ -139,6 +139,7 @@ import uuid
 import logging
 from contextlib import asynccontextmanager
 import traceback
+import weakref
 
 # Chrome Debug Protocol imports
 import websockets
@@ -161,17 +162,606 @@ logging.basicConfig(
     ]
 )
 
-
-
 logger = logging.getLogger(__name__)
 
+# ============================================================================
+# ASYNC SERVER STATE MANAGEMENT - NEW IMPROVEMENTS
+# ============================================================================
+
+class ServerState:
+    """Enhanced server state management with proper async cleanup."""
+    def __init__(self):
+        self.active_tasks = weakref.WeakSet()
+        self.chrome_instances = {}
+        self.connection_lock = asyncio.Lock()
+        self.cleanup_registered = False
+        self.console_logs = []
+        self.websocket_connections = {}
+    
+    async def add_task(self, task):
+        """Add a task to be tracked for cleanup."""
+        self.active_tasks.add(task)
+    
+    async def cleanup_all(self):
+        """Clean up all active resources."""
+        logger.info("Cleaning up server resources...")
+        
+        # Cancel all active tasks
+        tasks_to_cancel = list(self.active_tasks)
+        for task in tasks_to_cancel:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.error(f"Error during task cleanup: {e}")
+        
+        # Close WebSocket connections
+        for ws in list(self.websocket_connections.values()):
+            try:
+                if hasattr(ws, 'close'):
+                    await ws.close()
+            except Exception as e:
+                logger.error(f"Error closing WebSocket: {e}")
+        
+        logger.info(f"Cleaned up {len(tasks_to_cancel)} tasks and WebSocket connections")
+
+# Global server state
+server_state = ServerState()
+
+async def run_background_task(coro, task_name: str = "unnamed"):
+    """Run a coroutine as a background task with proper tracking."""
+    try:
+        task = asyncio.create_task(coro)
+        task.set_name(task_name)
+        await server_state.add_task(task)
+        
+        logger.info(f"Started background task: {task_name}")
+        result = await task
+        logger.info(f"Completed background task: {task_name}")
+        return result
+        
+    except asyncio.CancelledError:
+        logger.info(f"Background task cancelled: {task_name}")
+        raise
+    except Exception as e:
+        logger.error(f"Background task failed: {task_name} - {e}")
+        raise
+
+# ============================================================================
+# END NEW IMPROVEMENTS
+# ============================================================================
+
 # Initialize FastMCP server
-mcp = FastMCP("Cursor Development Assistant v2.0")
+mcp = FastMCP("Cursor Development Assistant v2.1")
 
 # Configuration
 SERVER_PORT = 8000
 SERVER_HOST = "127.0.0.1"
-SERVER_VERSION = "2.0.0"
+SERVER_VERSION = "2.1.0"  # Updated version
+SERVER_BUILD_TIME = datetime.now().isoformat()
+
+# Chrome Debug Protocol configuration
+CHROME_DEBUG_PORT = 9222
+CHROME_DEBUG_HOST = "localhost"
+
+# Global variables for Chrome connection management (kept for compatibility)
+chrome_instances = {}
+console_logs = []
+console_log_listeners = {}
+websocket_connections = {}  # Store persistent WebSocket connections
+connection_lock = threading.Lock()
+
+# Socket.IO client for orchestration
+socketio_client = None
+socketio_connected = False
+
+# Resource cleanup tracking (enhanced by ServerState)
+active_connections = set()
+background_tasks = set()
+
+# Multi-Agent Messaging System
+# ===========================
+
+import shutil
+import re
+from typing import Tuple
+
+# Messaging system configuration
+MESSAGING_ROOT = Path.cwd() / "messages"
+AGENTS_DIR = MESSAGING_ROOT / "agents"
+MESSAGES_DIR = MESSAGING_ROOT / "messages"
+DELETED_DIR = MESSAGING_ROOT / "deleted"
+SEQUENCE_FILE = MESSAGING_ROOT / "sequence.txt"
+
+def ensure_messaging_directories():
+    """Ensure all messaging directories exist."""
+    for directory in [MESSAGING_ROOT, AGENTS_DIR, MESSAGES_DIR, DELETED_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
+    
+    # Initialize sequence file if it doesn't exist
+    if not SEQUENCE_FILE.exists():
+        SEQUENCE_FILE.write_text("0")
+
+def get_agent_name() -> str:
+    """Get agent name from current repo directory."""
+    return Path.cwd().name
+
+def get_next_message_id() -> int:
+    """Get next sequential message ID with proper locking."""
+    ensure_messaging_directories()
+    try:
+        # Use file locking for thread safety
+        try:
+            import fcntl
+            with open(SEQUENCE_FILE, 'r+') as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    current_id = int(f.read().strip() or "0")
+                    next_id = current_id + 1
+                    f.seek(0)
+                    f.write(str(next_id))
+                    f.truncate()
+                    return next_id
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        except ImportError:
+            # Fallback for systems without fcntl (Windows)
+            try:
+                current_id = int(SEQUENCE_FILE.read_text().strip() or "0")
+                next_id = current_id + 1
+                SEQUENCE_FILE.write_text(str(next_id))
+                return next_id
+            except Exception:
+                SEQUENCE_FILE.write_text("1")
+                return 1
+    except (ValueError, FileNotFoundError):
+        SEQUENCE_FILE.write_text("1")
+        return 1
+
+def register_agent() -> Dict[str, Any]:
+    """Register current agent in the messaging system."""
+    ensure_messaging_directories()
+    
+    agent_name = get_agent_name()
+    agent_dir = AGENTS_DIR / agent_name
+    agent_dir.mkdir(exist_ok=True)
+    
+    # Get repo information
+    repo_path = str(Path.cwd().absolute())
+    
+    # Try to get GitHub remote URL
+    github_url = None
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            cwd=repo_path,
+            timeout=5
+        )
+        if result.returncode == 0:
+            github_url = result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    
+    # Create agent registration info
+    registration_info = {
+        "agent_name": agent_name,
+        "repo_path": repo_path,
+        "github_url": github_url,
+        "registration_timestamp": datetime.now().isoformat(),
+        "last_active": datetime.now().isoformat()
+    }
+    
+    # Save registration info
+    agent_info_file = agent_dir / "info.json"
+    with open(agent_info_file, 'w', encoding='utf-8') as f:
+        json.dump(registration_info, f, indent=2)
+    
+    return registration_info
+
+def get_agent_registration(agent_name: str) -> Optional[Dict[str, Any]]:
+    """Get registration info for a specific agent."""
+    agent_dir = AGENTS_DIR / agent_name
+    agent_info_file = agent_dir / "info.json"
+    
+    if not agent_info_file.exists():
+        return None
+    
+    try:
+        with open(agent_info_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
+
+def list_registered_agents() -> List[Dict[str, Any]]:
+    """List all registered agents."""
+    ensure_messaging_directories()
+    agents = []
+    
+    for agent_dir in AGENTS_DIR.iterdir():
+        if agent_dir.is_dir():
+            agent_info = get_agent_registration(agent_dir.name)
+            if agent_info:
+                agents.append(agent_info)
+    
+    return agents
+
+def create_message(to: str, subject: str, message: str, reply_to: Optional[int] = None) -> Dict[str, Any]:
+    """Create a new message."""
+    ensure_messaging_directories()
+    
+    message_id = get_next_message_id()
+    from_agent = get_agent_name()
+    
+    message_data = {
+        "id": message_id,
+        "to": to,
+        "from": from_agent,
+        "subject": subject,
+        "message": message,
+        "timestamp": datetime.now().isoformat(),
+        "read": False,
+        "reply_to": reply_to
+    }
+    
+    # Save message
+    message_file = MESSAGES_DIR / f"{message_id}.json"
+    with open(message_file, 'w', encoding='utf-8') as f:
+        json.dump(message_data, f, indent=2)
+    
+    # Update sender's last active timestamp
+    register_agent()
+    
+    return message_data
+
+def get_messages(agent_name: str, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Get messages for an agent with optional filtering."""
+    ensure_messaging_directories()
+    
+    messages = []
+    
+    # Read all message files
+    for message_file in MESSAGES_DIR.glob("*.json"):
+        try:
+            with open(message_file, 'r', encoding='utf-8') as f:
+                message_data = json.load(f)
+            
+            # Check if message is for this agent
+            if message_data.get("to") != agent_name:
+                continue
+            
+            # Apply filters if provided
+            if filters:
+                if "id" in filters and message_data.get("id") != filters["id"]:
+                    continue
+                if "from" in filters and message_data.get("from") != filters["from"]:
+                    continue
+                if "subject_contains" in filters and filters["subject_contains"].lower() not in message_data.get("subject", "").lower():
+                    continue
+                if "unread_only" in filters and filters["unread_only"] and message_data.get("read", False):
+                    continue
+                if "after" in filters:
+                    try:
+                        msg_time = datetime.fromisoformat(message_data.get("timestamp", ""))
+                        filter_time = datetime.fromisoformat(filters["after"])
+                        if msg_time <= filter_time:
+                            continue
+                    except ValueError:
+                        continue
+                if "before" in filters:
+                    try:
+                        msg_time = datetime.fromisoformat(message_data.get("timestamp", ""))
+                        filter_time = datetime.fromisoformat(filters["before"])
+                        if msg_time >= filter_time:
+                            continue
+                    except ValueError:
+                        continue
+            
+            messages.append(message_data)
+            
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to read message file {message_file}: {e}")
+            continue
+    
+    # Sort by timestamp (newest first)
+    messages.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    
+    return messages
+
+def mark_message_read(message_id: int, agent_name: str) -> bool:
+    """Mark a message as read."""
+    message_file = MESSAGES_DIR / f"{message_id}.json"
+    
+    if not message_file.exists():
+        return False
+    
+    try:
+        with open(message_file, 'r', encoding='utf-8') as f:
+            message_data = json.load(f)
+        
+        # Only allow the recipient to mark as read
+        if message_data.get("to") != agent_name:
+            return False
+        
+        message_data["read"] = True
+        message_data["read_timestamp"] = datetime.now().isoformat()
+        
+        with open(message_file, 'w', encoding='utf-8') as f:
+            json.dump(message_data, f, indent=2)
+        
+        return True
+        
+    except (json.JSONDecodeError, IOError):
+        return False
+
+def delete_message(message_id: int, agent_name: str) -> bool:
+    """Delete a message (move to deleted folder). Only sender can delete."""
+    message_file = MESSAGES_DIR / f"{message_id}.json"
+    
+    if not message_file.exists():
+        return False
+    
+    try:
+        with open(message_file, 'r', encoding='utf-8') as f:
+            message_data = json.load(f)
+        
+        # Only allow the sender to delete
+        if message_data.get("from") != agent_name:
+            return False
+        
+        # Move to deleted folder
+        deleted_file = DELETED_DIR / f"{message_id}.json"
+        shutil.move(str(message_file), str(deleted_file))
+        
+        return True
+        
+    except (json.JSONDecodeError, IOError):
+        return False
+
+def read_agent_file(agent_name: str, file_path: str) -> Optional[str]:
+    """Read a file from another agent's repo (if registered)."""
+    agent_info = get_agent_registration(agent_name)
+    if not agent_info:
+        return None
+    
+    try:
+        # Construct full path
+        repo_path = Path(agent_info["repo_path"])
+        full_path = repo_path / file_path
+        
+        # Security check: ensure path is within agent's repo
+        if not str(full_path.resolve()).startswith(str(repo_path.resolve())):
+            return None
+        
+        if full_path.exists() and full_path.is_file():
+            with open(full_path, 'r', encoding='utf-8') as f:
+                return f.read()
+                
+    except (IOError, OSError):
+        pass
+    
+    return None
+
+@mcp.tool()
+def messages(operation: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Multi-agent messaging system for communication between MCP server instances.
+    
+    Operations:
+    - send: Create new message (requires payload: {to, subject, message, reply_to?})
+    - get: Get messages for current agent (optional payload for filtering)
+    - list: List message summaries (optional payload for filtering)
+    - delete: Delete message by ID (requires payload: {id})
+    - reply: Reply to message (requires payload: {reply_to, message})
+    - register: Register current agent in messaging system
+    - agents: List all registered agents
+    - read_file: Read file from another agent's repo (requires payload: {agent, file_path})
+    
+    Args:
+        operation: The operation to perform
+        payload: Operation-specific data
+        
+    Returns:
+        Dict containing operation result and any relevant data
+    """
+    try:
+        ensure_messaging_directories()
+        current_agent = get_agent_name()
+        
+        if operation == "send":
+            if not payload or not all(k in payload for k in ["to", "subject", "message"]):
+                return {
+                    "success": False,
+                    "error": "send operation requires payload with 'to', 'subject', and 'message'"
+                }
+            
+            # Check if target agent is registered
+            target_agent = payload["to"]
+            if not get_agent_registration(target_agent):
+                return {
+                    "success": False,
+                    "error": f"Target agent '{target_agent}' is not registered"
+                }
+            
+            message_data = create_message(
+                to=payload["to"],
+                subject=payload["subject"],
+                message=payload["message"],
+                reply_to=payload.get("reply_to")
+            )
+            
+            return {
+                "success": True,
+                "operation": "send",
+                "message_id": message_data["id"],
+                "message": message_data
+            }
+        
+        elif operation == "get":
+            filters = payload or {}
+            messages_list = get_messages(current_agent, filters)
+            
+            # Mark first unread message as read if no specific filters
+            if not filters and messages_list:
+                unread_messages = [m for m in messages_list if not m.get("read", False)]
+                if unread_messages:
+                    mark_message_read(unread_messages[0]["id"], current_agent)
+                    unread_messages[0]["read"] = True
+            
+            return {
+                "success": True,
+                "operation": "get",
+                "agent": current_agent,
+                "messages": messages_list
+            }
+        
+        elif operation == "list":
+            filters = payload or {}
+            messages_list = get_messages(current_agent, filters)
+            
+            # Return summary information only
+            summaries = []
+            for msg in messages_list:
+                summary = {
+                    "id": msg["id"],
+                    "from": msg["from"],
+                    "subject": msg["subject"],
+                    "timestamp": msg["timestamp"],
+                    "read": msg.get("read", False)
+                }
+                if msg.get("reply_to"):
+                    summary["reply_to"] = msg["reply_to"]
+                summaries.append(summary)
+            
+            return {
+                "success": True,
+                "operation": "list",
+                "agent": current_agent,
+                "message_summaries": summaries,
+                "total_count": len(summaries),
+                "unread_count": len([m for m in summaries if not m["read"]])
+            }
+        
+        elif operation == "delete":
+            if not payload or "id" not in payload:
+                return {
+                    "success": False,
+                    "error": "delete operation requires payload with 'id'"
+                }
+            
+            success = delete_message(payload["id"], current_agent)
+            return {
+                "success": success,
+                "operation": "delete",
+                "message_id": payload["id"],
+                "deleted": success
+            }
+        
+        elif operation == "reply":
+            if not payload or not all(k in payload for k in ["reply_to", "message"]):
+                return {
+                    "success": False,
+                    "error": "reply operation requires payload with 'reply_to' and 'message'"
+                }
+            
+            # Get original message to determine recipient and subject
+            original_messages = get_messages(current_agent, {"id": payload["reply_to"]})
+            if not original_messages:
+                # Check if we sent the original message
+                try:
+                    message_file = MESSAGES_DIR / f"{payload['reply_to']}.json"
+                    if message_file.exists():
+                        with open(message_file, 'r', encoding='utf-8') as f:
+                            original_message = json.load(f)
+                        if original_message.get("from") == current_agent:
+                            # We're replying to someone who messaged us
+                            original_messages = [original_message]
+                except (json.JSONDecodeError, IOError):
+                    pass
+            
+            if not original_messages:
+                return {
+                    "success": False,
+                    "error": f"Original message {payload['reply_to']} not found"
+                }
+            
+            original = original_messages[0]
+            reply_to_agent = original["from"] if original["to"] == current_agent else original["to"]
+            reply_subject = f"Re: {original['subject']}" if not original["subject"].startswith("Re: ") else original["subject"]
+            
+            message_data = create_message(
+                to=reply_to_agent,
+                subject=reply_subject,
+                message=payload["message"],
+                reply_to=payload["reply_to"]
+            )
+            
+            return {
+                "success": True,
+                "operation": "reply",
+                "message_id": message_data["id"],
+                "reply_to": payload["reply_to"],
+                "message": message_data
+            }
+        
+        elif operation == "register":
+            registration_info = register_agent()
+            return {
+                "success": True,
+                "operation": "register",
+                "agent": registration_info
+            }
+        
+        elif operation == "agents":
+            agents_list = list_registered_agents()
+            return {
+                "success": True,
+                "operation": "agents",
+                "agents": agents_list,
+                "total_count": len(agents_list)
+            }
+        
+        elif operation == "read_file":
+            if not payload or not all(k in payload for k in ["agent", "file_path"]):
+                return {
+                    "success": False,
+                    "error": "read_file operation requires payload with 'agent' and 'file_path'"
+                }
+            
+            file_content = read_agent_file(payload["agent"], payload["file_path"])
+            if file_content is None:
+                return {
+                    "success": False,
+                    "error": f"Could not read file '{payload['file_path']}' from agent '{payload['agent']}'"
+                }
+            
+            return {
+                "success": True,
+                "operation": "read_file",
+                "agent": payload["agent"],
+                "file_path": payload["file_path"],
+                "content": file_content
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown operation: {operation}",
+                "available_operations": ["send", "get", "list", "delete", "reply", "register", "agents", "read_file"]
+            }
+    
+    except Exception as e:
+        logger.error(f"Messages operation failed: {e}")
+        return handle_error("messages", e, {"operation": operation, "payload": payload})
+
+# Configuration
+SERVER_PORT = 8000
+SERVER_HOST = "127.0.0.1"
+SERVER_VERSION = "2.0.1"
 SERVER_BUILD_TIME = datetime.now().isoformat()
 
 # Chrome Debug Protocol configuration
@@ -834,7 +1424,16 @@ def get_system_info(include_sensitive: bool = False) -> Dict[str, Any]:
 def server_info() -> Dict[str, Any]:
     """Get comprehensive MCP server information and status."""
     try:
-        tools_list = list(mcp.tools.keys()) if hasattr(mcp, 'tools') else []
+        # Get tools from the MCP server
+        tools_list = []
+        try:
+            # Since get_tools() is async, we'll use a different approach
+            # Count tools by looking at all function objects with 'fn' attribute
+            import inspect
+            tools_list = [name for name, obj in globals().items() 
+                         if hasattr(obj, 'fn') and hasattr(obj, 'name')]
+        except Exception as e:
+            logger.warning(f"Could not get tools list: {e}")
         
         return {
             "server_name": "Cursor Development Assistant",
@@ -871,7 +1470,6 @@ def server_info() -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e), "timestamp": datetime.now().isoformat()}
-
 
 @mcp.tool()
 def health() -> Dict[str, Any]:
@@ -921,8 +1519,6 @@ def health() -> Dict[str, Any]:
             "timestamp": datetime.now().isoformat()
         }
 
-
-# Chrome Debug Protocol Integration
 @asynccontextmanager
 async def websocket_connection(ws_url: str):
     """Context manager for safe WebSocket connections."""
@@ -1586,6 +2182,264 @@ def get_chatgpt_response() -> Dict[str, Any]:
         return {"success": False, "error": f"Exception occurred: {str(e)}"}
 
 # =================================================================
+# ENHANCED AUTOMATION TOOLS - With Completion Detection
+# =================================================================
+
+@mcp.tool()
+def tell_chatgpt_to_and_wait(prompt: str) -> Dict[str, Any]:
+    """
+    Advanced ChatGPT automation with completion detection - injects prompt and waits for response completion
+    
+    Args:
+        prompt: The prompt to send to ChatGPT
+        
+    Returns:
+        Dictionary with automation result and completion status
+    """
+    try:
+        # Find ChatGPT tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        chatgpt_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            tab_url = tab.get("url", "")
+            if "chat.openai.com" in tab_url or "chatgpt.com" in tab_url:
+                chatgpt_tab_id = tab.get("id")
+                break
+        
+        if not chatgpt_tab_id:
+            return {"success": False, "error": "No ChatGPT tab found - please open ChatGPT first"}
+        
+        # Execute automation with completion detection
+        automation_js = f"""
+        (async function() {{
+            if (typeof window.automateChatGPTWithCompletion !== 'function') {{
+                return {{success: false, message: "ChatGPT automation extension not loaded - refresh ChatGPT page"}};
+            }}
+            
+            const result = await window.automateChatGPTWithCompletion({json.dumps(prompt)});
+            return result;
+        }})();
+        """
+        
+        result = execute_javascript_fixed(automation_js, chatgpt_tab_id)
+        
+        if result.get("success"):
+            automation_result = result.get("value", {})
+            if automation_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Successfully told ChatGPT and waited for completion: {prompt}",
+                    "automation_result": automation_result,
+                    "response_complete": automation_result.get("responseComplete", False)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"ChatGPT automation failed: {automation_result.get('message', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
+@mcp.tool()
+def tell_bolt_to_and_wait(prompt: str) -> Dict[str, Any]:
+    """
+    Advanced Bolt.new automation with completion detection - injects prompt and waits for response completion
+    
+    Args:
+        prompt: The prompt to send to Bolt.new
+        
+    Returns:
+        Dictionary with automation result and completion status
+    """
+    try:
+        # Find bolt.new tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        bolt_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            if "bolt.new" in tab.get("url", ""):
+                bolt_tab_id = tab.get("id")
+                break
+        
+        if not bolt_tab_id:
+            return {"success": False, "error": "No bolt.new tab found - please open bolt.new first"}
+        
+        # Execute automation with completion detection
+        automation_js = f"""
+        (async function() {{
+            if (typeof window.automateBoltWithCompletion !== 'function') {{
+                return {{success: false, message: "Bolt automation extension not loaded - refresh bolt.new page"}};
+            }}
+            
+            const result = await window.automateBoltWithCompletion({json.dumps(prompt)});
+            return result;
+        }})();
+        """
+        
+        result = execute_javascript_fixed(automation_js, bolt_tab_id)
+        
+        if result.get("success"):
+            automation_result = result.get("value", {})
+            if automation_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Successfully told Bolt.new and waited for completion: {prompt}",
+                    "automation_result": automation_result,
+                    "response_complete": automation_result.get("responseComplete", False)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Bolt automation failed: {automation_result.get('message', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
+@mcp.tool()
+def tell_claude_to(prompt: str) -> Dict[str, Any]:
+    """
+    Direct automation for Claude.ai - inject and submit a prompt
+    
+    Args:
+        prompt: The prompt to send to Claude.ai
+        
+    Returns:
+        Dictionary with automation result
+    """
+    try:
+        # Find Claude.ai tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        claude_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            tab_url = tab.get("url", "")
+            if "claude.ai" in tab_url:
+                claude_tab_id = tab.get("id")
+                break
+        
+        if not claude_tab_id:
+            return {"success": False, "error": "No Claude.ai tab found - please open Claude.ai first"}
+        
+        # Execute automation via the global automateClaude function
+        automation_js = f"""
+        (async function() {{
+            if (typeof window.automateClaude !== 'function') {{
+                return {{success: false, message: "Claude automation extension not loaded - refresh Claude.ai page"}};
+            }}
+            
+            const result = await window.automateClaude({json.dumps(prompt)});
+            return result;
+        }})();
+        """
+        
+        result = execute_javascript_fixed(automation_js, claude_tab_id)
+        
+        if result.get("success"):
+            automation_result = result.get("value", {})
+            if automation_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Successfully told Claude.ai: {prompt}",
+                    "automation_result": automation_result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Claude automation failed: {automation_result.get('message', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
+@mcp.tool()
+def tell_claude_to_and_wait(prompt: str) -> Dict[str, Any]:
+    """
+    Advanced Claude.ai automation with completion detection - injects prompt and waits for response completion
+    
+    Args:
+        prompt: The prompt to send to Claude.ai
+        
+    Returns:
+        Dictionary with automation result and completion status
+    """
+    try:
+        # Find Claude.ai tab
+        tabs_result = get_chrome_tabs()
+        if not tabs_result.get("success"):
+            return {"success": False, "error": "Failed to get Chrome tabs"}
+        
+        claude_tab_id = None
+        for tab in tabs_result.get("tabs", []):
+            tab_url = tab.get("url", "")
+            if "claude.ai" in tab_url:
+                claude_tab_id = tab.get("id")
+                break
+        
+        if not claude_tab_id:
+            return {"success": False, "error": "No Claude.ai tab found - please open Claude.ai first"}
+        
+        # Execute automation with completion detection
+        automation_js = f"""
+        (async function() {{
+            if (typeof window.automateClaudeWithCompletion !== 'function') {{
+                return {{success: false, message: "Claude automation extension not loaded - refresh Claude.ai page"}};
+            }}
+            
+            const result = await window.automateClaudeWithCompletion({json.dumps(prompt)});
+            return result;
+        }})();
+        """
+        
+        result = execute_javascript_fixed(automation_js, claude_tab_id)
+        
+        if result.get("success"):
+            automation_result = result.get("value", {})
+            if automation_result.get("success"):
+                return {
+                    "success": True,
+                    "message": f"✅ Successfully told Claude.ai and waited for completion: {prompt}",
+                    "automation_result": automation_result,
+                    "response_complete": automation_result.get("responseComplete", False)
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Claude automation failed: {automation_result.get('message', 'Unknown error')}"
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"JavaScript execution failed: {result.get('error', 'Unknown error')}"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Exception occurred: {str(e)}"}
+
+# =================================================================
 # ORCHESTRATION TOOLS - Multi-LLM Coordination
 # =================================================================
 
@@ -1717,8 +2571,530 @@ def send_orchestration_command(
             "details": "Failed to execute async Socket.IO operation"
         }
 
+# =================================================================
+# NATIVE BROWSER AUTOMATION TOOLS
+# =================================================================
+
+@mcp.tool()
+def inject_prompt_native(
+    prompt: str,
+    browser: str = "Chrome",
+    use_tab_navigation: bool = True,
+    use_clipboard: bool = True,
+    typing_delay: float = 0.05,
+    delay_between_steps: float = 1.0
+) -> Dict[str, Any]:
+    """
+    Inject prompt into any web browser AI interface using native keyboard automation.
+    
+    This bypasses JavaScript validation and appears as genuine user input to the browser.
+    Works with Gemini, ChatGPT, Claude.ai, or any web-based AI interface.
+    
+    Args:
+        prompt: Text prompt to inject
+        browser: Browser name to focus ('Chrome', 'Safari', 'Firefox', 'Edge')
+        use_tab_navigation: Whether to use Tab key to navigate to input field
+        use_clipboard: If True, use copy/paste instead of typing (much faster)
+        typing_delay: Delay between keystrokes in seconds (0 for instant, 0.05 for human-like)
+        delay_between_steps: Delay between major automation steps
+        
+    Returns:
+        Dictionary with injection status and detailed step results
+    """
+    try:
+        # Import the native injector
+        import sys
+        import os
+        
+        # Add current directory to path to import our injector
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        if current_dir not in sys.path:
+            sys.path.insert(0, current_dir)
+        
+        from gemini_native_injector import GeminiNativeInjector
+        
+        # Create injector instance
+        injector = GeminiNativeInjector()
+        
+        # Execute the injection
+        result = injector.inject_gemini_prompt(
+            prompt=prompt,
+            browser=browser,
+            use_tab_navigation=use_tab_navigation,
+            use_clipboard=use_clipboard,
+            typing_delay=typing_delay,
+            delay_between_steps=delay_between_steps
+        )
+        
+        # Make the result JSON-safe
+        return make_json_safe(result)
+        
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"Failed to import native injector: {str(e)}",
+            "details": "Ensure gemini_native_injector.py is in the same directory"
+        }
+    except Exception as e:
+        logger.error(f"Native injection failed: {e}")
+        return {
+            "success": False,
+            "error": f"Native injection failed: {str(e)}",
+            "error_type": type(e).__name__
+        }
+
+@mcp.tool()
+def focus_and_type_native(
+    text: str,
+    app_name: str = "Chrome",
+    typing_delay: float = 0.05
+) -> Dict[str, Any]:
+    """
+    Focus an application and type text using native automation.
+    
+    Useful for injecting text into any application, not just browsers.
+    
+    Args:
+        text: Text to type
+        app_name: Application name to focus
+        typing_delay: Delay between keystrokes (0 for instant)
+        
+    Returns:
+        Dictionary with automation status
+    """
+    try:
+        from gemini_native_injector import GeminiNativeInjector
+        
+        injector = GeminiNativeInjector()
+        
+        result = {
+            'success': False,
+            'steps': [],
+            'error': None,
+            'app_name': app_name,
+            'text_length': len(text)
+        }
+        
+        # Focus the application
+        if app_name.lower() in ['chrome', 'safari', 'firefox', 'edge']:
+            success, message = injector.focus_browser(app_name)
+        else:
+            # For non-browser apps, try generic focus (this would need platform-specific implementation)
+            success, message = False, f"Generic app focus not implemented for {app_name}"
+        
+        result['steps'].append({'step': 'focus_app', 'success': success, 'message': message})
+        
+        if not success:
+            result['error'] = f"Failed to focus {app_name}: {message}"
+            return make_json_safe(result)
+        
+        # Type the text
+        time.sleep(0.5)  # Small delay after focusing
+        success, message = injector.type_text(text, typing_delay)
+        result['steps'].append({'step': 'type_text', 'success': success, 'message': message})
+        
+        if success:
+            result['success'] = True
+        else:
+            result['error'] = f"Failed to type text: {message}"
+        
+        return make_json_safe(result)
+        
+    except Exception as e:
+        logger.error(f"Focus and type failed: {e}")
+        return {
+            "success": False,
+            "error": f"Focus and type failed: {str(e)}",
+            "error_type": type(e).__name__
+        }
+
 # Add the remaining Chrome debugging functions here...
 # (console monitoring, breakpoints, etc.)
+
+# ============================================================================
+# CLEAN NOTIFICATION SYSTEM FOR MULTI-AGENT COORDINATION
+# ============================================================================
+
+# Notification system configuration
+NOTIFICATIONS_ROOT = MESSAGING_ROOT / "notifications"
+NOTIFICATIONS_DIR = NOTIFICATIONS_ROOT / "pending"
+CANCEL_FLAGS_DIR = NOTIFICATIONS_ROOT / "cancel_flags"
+
+def ensure_notification_directories():
+    """Ensure all notification directories exist."""
+    for directory in [NOTIFICATIONS_ROOT, NOTIFICATIONS_DIR, CANCEL_FLAGS_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
+
+def create_notification(target_agent: str, message: str, sender: str = None) -> Dict[str, Any]:
+    """Create a notification for target agent."""
+    ensure_notification_directories()
+    
+    if sender is None:
+        sender = get_agent_name()
+    
+    notification_id = f"{int(time.time() * 1000000)}_{uuid.uuid4().hex[:8]}"
+    
+    notification_data = {
+        "id": notification_id,
+        "target_agent": target_agent,
+        "message": message,
+        "sender": sender,
+        "timestamp": datetime.now().isoformat(),
+        "created_at": time.time()
+    }
+    
+    # Save notification atomically
+    notification_file = NOTIFICATIONS_DIR / f"{target_agent}_{notification_id}.json"
+    temp_file = notification_file.with_suffix('.tmp')
+    
+    with open(temp_file, 'w', encoding='utf-8') as f:
+        json.dump(notification_data, f, indent=2)
+    
+    temp_file.rename(notification_file)
+    
+    # Immediately wake up waiting agent (event-driven)
+    asyncio.create_task(comm_hub.notify_agent(target_agent, "notification"))
+    
+    logger.info(f"Created notification {notification_id} for {target_agent} from {sender}")
+    return notification_data
+
+def get_pending_notifications(agent_name: str) -> List[Dict[str, Any]]:
+    """Get all pending notifications for an agent."""
+    ensure_notification_directories()
+    
+    notifications = []
+    pattern = f"{agent_name}_*.json"
+    
+    for notification_file in NOTIFICATIONS_DIR.glob(pattern):
+        try:
+            with open(notification_file, 'r', encoding='utf-8') as f:
+                notification_data = json.load(f)
+            notifications.append(notification_data)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Failed to read notification file {notification_file}: {e}")
+            continue
+    
+    # Sort by timestamp (oldest first)
+    notifications.sort(key=lambda x: x.get("created_at", 0))
+    return notifications
+
+def delete_notifications(agent_name: str, notification_ids: List[str] = None) -> int:
+    """Delete delivered notifications."""
+    ensure_notification_directories()
+    
+    deleted_count = 0
+    pattern = f"{agent_name}_*.json"
+    
+    for notification_file in NOTIFICATIONS_DIR.glob(pattern):
+        try:
+            if notification_ids is None:
+                # Delete all notifications for agent
+                notification_file.unlink()
+                deleted_count += 1
+            else:
+                # Delete specific notifications
+                with open(notification_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if data.get("id") in notification_ids:
+                    notification_file.unlink()
+                    deleted_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to delete notification {notification_file}: {e}")
+    
+    logger.info(f"Deleted {deleted_count} notifications for {agent_name}")
+    return deleted_count
+
+def set_cancel_flag(agent_name: str) -> bool:
+    """Set cancel flag to interrupt waiting agent."""
+    ensure_notification_directories()
+    
+    cancel_file = CANCEL_FLAGS_DIR / f"{agent_name}.cancel"
+    try:
+        cancel_file.write_text(datetime.now().isoformat())
+        logger.info(f"Set cancel flag for {agent_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set cancel flag for {agent_name}: {e}")
+        return False
+
+def check_cancel_flag(agent_name: str) -> bool:
+    """Check if agent has a cancel flag set."""
+    ensure_notification_directories()
+    
+    cancel_file = CANCEL_FLAGS_DIR / f"{agent_name}.cancel"
+    if cancel_file.exists():
+        try:
+            cancel_file.unlink()  # Remove flag after checking
+            logger.info(f"Cancel flag found and cleared for {agent_name}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to clear cancel flag for {agent_name}: {e}")
+    return False
+
+@mcp.tool()
+async def notify(operation: str, target_agent: str = None, message: str = None, sender: str = None, agent_name: str = None) -> Dict[str, Any]:
+    """
+    Clean notification system for multi-agent coordination.
+    
+    Operations:
+    - notify: Send notification to target agent
+      Args: target_agent (str), message (str), [sender (str)]
+    - wait: Wait for incoming notifications (returns all pending)
+      Args: agent_name (str) - the agent waiting for notifications
+    - cancel_wait: Interrupt a waiting agent  
+      Args: target_agent (str)
+    - check: Check for pending notifications without waiting
+      Args: agent_name (str) - the agent checking for notifications
+    
+    Args:
+        operation: The operation to perform
+        target_agent: Target agent name (required for notify and cancel_wait)
+        message: Message text (required for notify)
+        sender: Sender name (optional, defaults to current agent)
+        agent_name: Agent name for wait/check operations (required for wait/check)
+        
+    Returns:
+        Dict containing operation result
+    """
+    try:
+        # For backward compatibility, fall back to directory-based name if not provided
+        current_agent = agent_name if agent_name else get_agent_name()
+        
+        if operation == "notify":
+            if not target_agent or not message:
+                return {
+                    "success": False,
+                    "error": "notify operation requires 'target_agent' and 'message'"
+                }
+            
+            notification = create_notification(target_agent, message, sender)
+            
+            return {
+                "success": True,
+                "operation": "notify",
+                "notification_id": notification["id"],
+                "target_agent": target_agent,
+                "message": message,
+                "sender": notification["sender"],
+                "timestamp": notification["timestamp"]
+            }
+        
+        elif operation == "wait":
+            if not agent_name:
+                return {
+                    "success": False,
+                    "error": "wait operation requires 'agent_name' parameter"
+                }
+            
+            logger.info(f"Agent {current_agent} starting event-driven wait for notifications...")
+            
+            # Use event-driven waiting instead of polling
+            result = await comm_hub.wait_for_communication(current_agent, include_messages=False)
+            return result
+        
+        elif operation == "cancel_wait":
+            if not target_agent:
+                return {
+                    "success": False,
+                    "error": "cancel_wait operation requires 'target_agent'"
+                }
+            
+            success = set_cancel_flag(target_agent)
+            
+            return {
+                "success": success,
+                "operation": "cancel_wait",
+                "target_agent": target_agent,
+                "message": f"Cancel signal sent to {target_agent}" if success else "Failed to send cancel signal"
+            }
+        
+        elif operation == "check":
+            if not agent_name:
+                return {
+                    "success": False,
+                    "error": "check operation requires 'agent_name' parameter"
+                }
+            
+            notifications = get_pending_notifications(current_agent)
+            
+            return {
+                "success": True,
+                "operation": "check",
+                "notifications": notifications,
+                "count": len(notifications),
+                "has_pending": len(notifications) > 0,
+                "agent_name": current_agent
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown operation: {operation}",
+                "available_operations": ["notify", "wait", "cancel_wait", "check"]
+            }
+    
+    except Exception as e:
+        logger.error(f"Notification operation failed: {e}")
+        return handle_error("notify", e, {"operation": operation, "target_agent": target_agent, "message": message, "agent_name": agent_name})
+
+# ============================================================================
+# END NOTIFICATION SYSTEM
+# ============================================================================
+
+# ============================================================================
+# EVENT-DRIVEN COMMUNICATION HUB
+# ============================================================================
+
+class CommunicationHub:
+    """Event-driven communication hub for immediate multi-agent coordination."""
+    
+    def __init__(self):
+        self.waiting_agents = {}  # agent_name -> asyncio.Event
+        self.agent_timeouts = {}  # agent_name -> timeout_handle
+        self._lock = asyncio.Lock()
+    
+    async def wait_for_communication(self, agent_name: str, include_messages: bool = False, timeout: float = None) -> Dict[str, Any]:
+        """Wait for any communication (notifications and optionally messages) for an agent."""
+        start_time = time.time()
+        
+        # Check for existing communications first
+        existing_comms = await self._get_existing_communications(agent_name, include_messages)
+        if existing_comms["has_communications"]:
+            return {
+                "success": True,
+                "operation": "wait",
+                "notifications": existing_comms["notifications"],
+                "messages": existing_comms["messages"],
+                "count": existing_comms["total_count"],
+                "wait_time": 0,
+                "delivery_type": "immediate",
+                "agent_name": agent_name,
+                "unified_delivery": include_messages
+            }
+        
+        # Set up event-driven waiting
+        async with self._lock:
+            event = asyncio.Event()
+            self.waiting_agents[agent_name] = event
+            
+            # Set up timeout if specified
+            timeout_handle = None
+            if timeout:
+                timeout_handle = asyncio.create_task(asyncio.sleep(timeout))
+                self.agent_timeouts[agent_name] = timeout_handle
+        
+        try:
+            logger.info(f"Agent {agent_name} starting event-driven wait for communications...")
+            
+            # Wait for either communication event or timeout
+            if timeout:
+                done, pending = await asyncio.wait(
+                    [asyncio.create_task(event.wait()), timeout_handle],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel remaining tasks
+                for task in pending:
+                    task.cancel()
+                
+                # Check if timeout occurred
+                if timeout_handle in done:
+                    return {
+                        "success": False,
+                        "operation": "wait",
+                        "error": f"Wait timeout after {timeout} seconds",
+                        "wait_time": round(time.time() - start_time, 1),
+                        "agent_name": agent_name
+                    }
+            else:
+                # Wait indefinitely
+                await event.wait()
+            
+            # Get communications after being woken up
+            wait_time = time.time() - start_time
+            comms = await self._get_existing_communications(agent_name, include_messages)
+            
+            logger.info(f"Agent {agent_name} received {comms['total_count']} communications after {wait_time:.3f}s")
+            
+            return {
+                "success": True,
+                "operation": "wait",
+                "notifications": comms["notifications"],
+                "messages": comms["messages"],
+                "count": comms["total_count"],
+                "wait_time": round(wait_time, 3),
+                "delivery_type": "event_driven",
+                "agent_name": agent_name,
+                "unified_delivery": include_messages
+            }
+            
+        finally:
+            # Clean up waiting agent
+            async with self._lock:
+                self.waiting_agents.pop(agent_name, None)
+                if agent_name in self.agent_timeouts:
+                    timeout_handle = self.agent_timeouts.pop(agent_name)
+                    if not timeout_handle.done():
+                        timeout_handle.cancel()
+    
+    async def notify_agent(self, agent_name: str, communication_type: str = "notification"):
+        """Immediately wake up a waiting agent."""
+        async with self._lock:
+            if agent_name in self.waiting_agents:
+                event = self.waiting_agents[agent_name]
+                event.set()
+                logger.info(f"Immediately woke up agent {agent_name} for {communication_type}")
+                return True
+            return False
+    
+    async def cancel_wait(self, agent_name: str) -> bool:
+        """Cancel waiting for a specific agent."""
+        async with self._lock:
+            if agent_name in self.waiting_agents:
+                event = self.waiting_agents[agent_name]
+                event.set()
+                logger.info(f"Cancelled wait for agent {agent_name}")
+                return True
+            return False
+    
+    async def _get_existing_communications(self, agent_name: str, include_messages: bool) -> Dict[str, Any]:
+        """Get existing notifications and optionally messages for an agent."""
+        notifications = get_pending_notifications(agent_name)
+        messages = []
+        
+        if include_messages:
+            messages = get_messages(agent_name, {"unread_only": True})
+        
+        # Clean up delivered communications
+        if notifications:
+            delivered_ids = [n["id"] for n in notifications]
+            delete_notifications(agent_name, delivered_ids)
+        
+        if messages:
+            for msg in messages:
+                mark_message_read(msg["id"], agent_name)
+        
+        return {
+            "notifications": notifications,
+            "messages": messages,
+            "total_count": len(notifications) + len(messages),
+            "has_communications": len(notifications) > 0 or len(messages) > 0
+        }
+    
+    def get_waiting_agents(self) -> List[str]:
+        """Get list of currently waiting agents."""
+        return list(self.waiting_agents.keys())
+
+# Global communication hub instance
+comm_hub = CommunicationHub()
+
+# ============================================================================
+# END EVENT-DRIVEN COMMUNICATION HUB
+# ============================================================================
+
+# ============================================================================
+# ENHANCED NOTIFICATION SYSTEM WITH EVENT-DRIVEN SUPPORT
+# ============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Consolidated MCP Server v2.0")
@@ -1746,4 +3122,4 @@ if __name__ == "__main__":
     else:
         print(f"🎯 Starting HTTP transport on {args.host}:{args.port}")
         logger.info(f"Starting Consolidated MCP Server v{SERVER_VERSION} on {args.host}:{args.port}")
-        mcp.run(transport="streamable-http", host=args.host, port=args.port)# Test comment Sat Jun  7 08:07:12 EDT 2025
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
