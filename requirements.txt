@@ -24,4 +24,10 @@ psutil>=5.9.0  # For cross-platform process management
 click>=8.1.0   # For CLI interfaces in Python scripts
 colorama>=0.4.6  # For cross-platform colored terminal output
 pathlib>=1.0.1  # For cross-platform path handling
-python-dotenv>=1.0.0  # For environment variable management 
+python-dotenv>=1.0.0  # For environment variable management
+
+# Security and Rate Limiting Dependencies
+python-jose[cryptography]>=3.3.0  # For JWT handling
+passlib[bcrypt]>=1.7.4  # For password hashing
+slowapi>=0.1.8  # For rate limiting
+python-multipart>=0.0.6  # For form data parsing 

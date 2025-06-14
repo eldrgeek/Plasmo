@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client"
 
-export {}
+export { }
 
 // Background script for Chrome extension with Cursor IDE control
 console.log("Background script loaded")
@@ -30,12 +30,13 @@ const initializeSocketConnection = () => {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
-    maxReconnectionAttempts: 5
+    reconnectionAttempts: 5
   })
+
 
   socket.on("connect", () => {
     console.log("✅ Connected to SocketIO server")
-    
+
     // Register this extension instance
     socket?.emit("extension_register", {
       extensionId: chrome.runtime.id,
@@ -65,33 +66,33 @@ const handleCursorCommand = async (command: CursorCommand) => {
       case "reconnect_mcp":
         await reconnectMcpServer()
         break
-      
+
       case "open_file":
         await openFileInCursor(command.payload?.filePath)
         break
-      
+
       case "run_command":
         await runCursorCommand(command.payload?.command)
         break
-      
+
       case "restart_extension":
         await restartExtension()
         break
-      
+
       default:
         console.warn("Unknown command:", command.action)
     }
-    
+
     // Send success response back to SocketIO server
     socket?.emit("command_result", {
       commandId: command.timestamp,
       status: "success",
       timestamp: Date.now()
     })
-    
+
   } catch (error) {
     console.error("Error executing command:", error)
-    
+
     socket?.emit("command_result", {
       commandId: command.timestamp,
       status: "error",
@@ -107,18 +108,18 @@ const connectToNativeHost = () => {
 
   try {
     nativePort = chrome.runtime.connectNative(NATIVE_HOST_NAME)
-    
+
     nativePort.onMessage.addListener((message) => {
       console.log("📨 Native host response:", message)
     })
-    
+
     nativePort.onDisconnect.addListener(() => {
       console.log("❌ Native host disconnected")
       nativePort = null
     })
-    
+
     return nativePort
-    
+
   } catch (error) {
     console.error("❌ Failed to connect to native host:", error)
     return null
@@ -129,12 +130,12 @@ const connectToNativeHost = () => {
 const reconnectMcpServer = async () => {
   const port = connectToNativeHost()
   if (!port) throw new Error("Native messaging not available")
-  
+
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(new Error("MCP reconnection timeout"))
     }, 10000)
-    
+
     const messageListener = (response: any) => {
       if (response.action === "mcp_reconnect_complete") {
         clearTimeout(timeoutId)
@@ -142,9 +143,9 @@ const reconnectMcpServer = async () => {
         resolve(response)
       }
     }
-    
+
     port.onMessage.addListener(messageListener)
-    
+
     port.postMessage({
       action: "reconnect_mcp_server",
       timestamp: Date.now()
@@ -155,7 +156,7 @@ const reconnectMcpServer = async () => {
 const openFileInCursor = async (filePath: string) => {
   const port = connectToNativeHost()
   if (!port) throw new Error("Native messaging not available")
-  
+
   port.postMessage({
     action: "open_file",
     filePath: filePath,
@@ -166,7 +167,7 @@ const openFileInCursor = async (filePath: string) => {
 const runCursorCommand = async (command: string) => {
   const port = connectToNativeHost()
   if (!port) throw new Error("Native messaging not available")
-  
+
   port.postMessage({
     action: "run_command",
     command: command,
@@ -181,10 +182,10 @@ const restartExtension = async () => {
 // Listen for extension installation
 chrome.runtime.onInstalled.addListener((details) => {
   console.log("Extension installed:", details.reason)
-  
+
   // Initialize SocketIO connection on install
   setTimeout(initializeSocketConnection, 1000)
-  
+
   // Initialize default settings
   if (details.reason === "install") {
     chrome.storage.sync.set({
@@ -205,7 +206,7 @@ initializeSocketConnection()
 // Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Message received:", request)
-  
+
   switch (request.action) {
     case "getTabInfo":
       // Get current tab information
@@ -218,7 +219,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
       })
       return true // Keep message channel open for async response
-      
+
     case "showNotification":
       // Show a notification
       chrome.notifications.create({
@@ -236,14 +237,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .then(() => sendResponse({ success: true }))
         .catch((error) => sendResponse({ success: false, error: error.message }))
       return true
-      
+
     case "get_socket_status":
       sendResponse({
         connected: socket?.connected || false,
         serverUrl: SOCKET_SERVER_URL
       })
       break
-      
+
     default:
       sendResponse({ error: "Unknown action" })
   }
@@ -253,7 +254,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "complete" && tab.url) {
     console.log("Tab updated:", tab.url)
-    
+
     // Notify SocketIO server about tab changes if needed
     if (socket?.connected) {
       socket.emit("tab_updated", {
@@ -277,11 +278,11 @@ const performPeriodicTask = () => {
     console.log("Reconnecting to SocketIO server...")
     initializeSocketConnection()
   }
-  
+
   // Check settings and perform tasks based on user preferences
   chrome.storage.sync.get(["settings"], (result) => {
     const settings = result.settings || {}
-    
+
     if (settings.autoUpdate) {
       console.log("Auto-update is enabled")
     }

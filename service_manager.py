@@ -8,6 +8,7 @@ import json
 import logging
 import asyncio
 import aiohttp
+import platform
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
@@ -39,10 +40,12 @@ class ServiceType(Enum):
     PLASMO_DEV = "plasmo_dev"
     CONTINUOUS_TESTS = "continuous_tests"
     DASHBOARD = "dashboard"
+    CHROME_DEBUG = "chrome_debug"
 
 class ImplementationType(Enum):
     JAVASCRIPT = "javascript"
     PYTHON = "python"
+    CHROME = "chrome"
 
 @dataclass
 class ServiceConfig:
@@ -62,6 +65,7 @@ class ServiceManager:
         self.base_dir = base_dir or Path.cwd()
         self.logs_dir = self.base_dir / "logs"
         self.running_processes: Dict[str, subprocess.Popen] = {}
+        self.platform = platform.system().lower()
         
         # Ensure logs directory exists
         self.logs_dir.mkdir(exist_ok=True)
@@ -81,6 +85,59 @@ class ServiceManager:
                 logging.StreamHandler()
             ]
         )
+        
+    def get_chrome_executables(self) -> List[str]:
+        """Get list of possible Chrome executable paths for current platform"""
+        if self.platform == "darwin":  # macOS
+            return [
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                "/Applications/Chromium.app/Contents/MacOS/Chromium"
+            ]
+        elif self.platform == "linux":
+            return [
+                "google-chrome",
+                "google-chrome-stable", 
+                "chromium-browser",
+                "chromium"
+            ]
+        elif self.platform == "windows":
+            return [
+                "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+                "chrome.exe"
+            ]
+        else:
+            return ["chrome", "chromium"]
+            
+    def find_chrome_executable(self) -> Optional[str]:
+        """Find the Chrome executable on the system"""
+        executables = self.get_chrome_executables()
+        
+        for exe in executables:
+            # Check if it's an absolute path and exists
+            if os.path.isabs(exe) and os.path.isfile(exe) and os.access(exe, os.X_OK):
+                return exe
+            # Check if it's in PATH
+            elif subprocess.run(["which", exe], capture_output=True, text=True).returncode == 0:
+                result = subprocess.run(["which", exe], capture_output=True, text=True)
+                return result.stdout.strip()
+                
+        return None
+        
+    def get_chrome_debug_args(self, debug_port: int = 9222) -> List[str]:
+        """Get Chrome launch arguments for debug mode"""
+        profile_dir = self.base_dir / "chrome-debug-profile"
+        profile_dir.mkdir(exist_ok=True)
+        
+        return [
+            f"--remote-debugging-port={debug_port}",
+            "--remote-allow-origins=*",
+            "--no-first-run",
+            "--no-default-browser-check", 
+            "--disable-features=VizDisplayCompositor",
+            f"--user-data-dir={profile_dir}",
+            "--new-window"
+        ]
         
     def load_service_configs(self):
         """Load service configurations based on environment"""
@@ -141,18 +198,55 @@ class ServiceManager:
             name="dashboard",
             service_type=ServiceType.DASHBOARD,
             implementation=ImplementationType.PYTHON,
-            command=[sys.executable, "dashboard_server.py"],
+            command=[sys.executable, "dashboard_stunning.py"],
             port=8080,
             log_file="dashboard.log",
             env_vars={"PYTHONPATH": str(self.base_dir)}
         )
+        
+        # MCP Dashboard Configuration
+        mcp_dashboard_config = ServiceConfig(
+            name="mcp_dashboard",
+            service_type=ServiceType.DASHBOARD,
+            implementation=ImplementationType.PYTHON,
+            command=[sys.executable, "mcp_dashboard.py"],
+            port=8081,
+            log_file="mcp_dashboard.log",
+            env_vars={"PYTHONPATH": str(self.base_dir)}
+        )
+        
+        # Chrome Debug Configuration
+        chrome_executable = self.find_chrome_executable()
+        if chrome_executable:
+            chrome_config = ServiceConfig(
+                name="chrome_debug",
+                service_type=ServiceType.CHROME_DEBUG,
+                implementation=ImplementationType.CHROME,
+                command=[chrome_executable] + self.get_chrome_debug_args(),
+                port=9222,
+                log_file="chrome_debug.log",
+                auto_restart=True
+            )
+        else:
+            # Create a placeholder config that will show Chrome as unavailable
+            chrome_config = ServiceConfig(
+                name="chrome_debug",
+                service_type=ServiceType.CHROME_DEBUG,
+                implementation=ImplementationType.CHROME,
+                command=["chrome-not-found"],
+                port=9222,
+                log_file="chrome_debug.log",
+                auto_restart=True
+            )
         
         self.service_configs = {
             "socketio": socketio_config,
             "mcp": mcp_config,
             "plasmo": plasmo_config,
             "tests": tests_config,
-            "dashboard": dashboard_config
+            "dashboard": dashboard_config,
+            "mcp_dashboard": mcp_dashboard_config,
+            "chrome_debug": chrome_config
         }
         
     def print_status(self, message: str, status_type: str = "info"):
@@ -206,7 +300,16 @@ class ServiceManager:
                     if "continuous_test_runner.py" in cmdline_str:
                         return True, proc.info['pid']
                 elif service_name == "dashboard":
-                    if "dashboard_server.py" in cmdline_str:
+                    if ("dashboard_server.py" in cmdline_str or 
+                        "dashboard_fasthtml.py" in cmdline_str or
+                        "dashboard_stunning.py" in cmdline_str):
+                        return True, proc.info['pid']
+                elif service_name == "mcp_dashboard":
+                    if "mcp_dashboard.py" in cmdline_str:
+                        return True, proc.info['pid']
+                elif service_name == "chrome_debug":
+                    if ("chrome-debug-profile" in cmdline_str and 
+                        "remote-debugging-port" in cmdline_str):
                         return True, proc.info['pid']
                         
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -216,6 +319,27 @@ class ServiceManager:
         
     async def wait_for_service_ready(self, service_name: str, config: ServiceConfig, proc: subprocess.Popen, timeout: int = 30) -> bool:
         """Wait for a service to signal it's ready"""
+        
+        # For Chrome Debug, check if debug port is accessible
+        if config.service_type == ServiceType.CHROME_DEBUG:
+            debug_url = f"http://localhost:{config.port}/json"
+            
+            for attempt in range(timeout):
+                if proc.poll() is not None:  # Process died
+                    return False
+                    
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(debug_url, timeout=2) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                if isinstance(data, list):  # Chrome returns list of tabs
+                                    return True
+                except (aiohttp.ClientError, asyncio.TimeoutError):
+                    pass
+                    
+                await asyncio.sleep(1)
+            return False
         
         # For external services (like Plasmo), just wait a bit and check if process is still running
         if config.service_type == ServiceType.PLASMO_DEV:
@@ -257,6 +381,15 @@ class ServiceManager:
             self.print_status(f"❌ Unknown service: {service_name}", "error")
             return False
             
+        # Special handling for Chrome Debug
+        if service_name == "chrome_debug":
+            if config.command[0] == "chrome-not-found":
+                self.print_status("❌ Chrome executable not found! Please install Chrome.", "error")
+                return False
+                
+            # Kill any existing Chrome debug instances
+            self._kill_existing_chrome_debug()
+            
         # Check if already running
         is_running, pid = self.is_service_running(service_name)
         if is_running:
@@ -278,67 +411,118 @@ class ServiceManager:
                 log_file = open(log_path, 'a')
                 
             # Start the process
-            working_dir = config.working_dir or self.base_dir
-            
-            proc = subprocess.Popen(
-                config.command,
-                cwd=working_dir,
-                env=env,
-                stdout=log_file,
-                stderr=subprocess.STDOUT if log_file else None,
-                preexec_fn=None if sys.platform == "win32" else os.setsid
-            )
-            
+            if service_name == "chrome_debug":
+                # Chrome needs special handling for background execution
+                if self.platform == "windows":
+                    proc = subprocess.Popen(
+                        config.command,
+                        stdout=log_file,
+                        stderr=log_file,
+                        env=env,
+                        cwd=config.working_dir or self.base_dir,
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    )
+                else:
+                    proc = subprocess.Popen(
+                        config.command,
+                        stdout=log_file,
+                        stderr=log_file,
+                        env=env,
+                        cwd=config.working_dir or self.base_dir
+                    )
+            else:
+                proc = subprocess.Popen(
+                    config.command,
+                    stdout=log_file,
+                    stderr=log_file,
+                    env=env,
+                    cwd=config.working_dir or self.base_dir
+                )
+                
+            # Track the process
             self.running_processes[service_name] = proc
             
-            # Wait for service to be ready (with smart timeout)
-            self.print_status(f"⏳ Waiting for {service_name} to be ready...", "info")
+            # Wait for service to be ready
+            self.print_status(f"⏳ Waiting for {service_name} to be ready...")
+            ready = await self.wait_for_service_ready(service_name, config, proc)
             
-            is_ready = await self.wait_for_service_ready(service_name, config, proc)
-            
-            if is_ready:
+            if ready:
                 self.print_status(f"✅ Service '{service_name}' started and ready (PID: {proc.pid})", "success")
+                if service_name == "chrome_debug":
+                    self.print_status(f"🌐 Chrome Debug URL: http://localhost:{config.port}")
                 return True
             else:
                 self.print_status(f"❌ Service '{service_name}' failed to become ready", "error")
+                proc.terminate()
+                if service_name in self.running_processes:
+                    del self.running_processes[service_name]
                 return False
                 
         except Exception as e:
-            self.print_status(f"❌ Failed to start '{service_name}': {e}", "error")
+            self.print_status(f"❌ Failed to start {service_name}: {e}", "error")
             return False
-            
+        finally:
+            if log_file:
+                log_file.close()
+                
+    def _kill_existing_chrome_debug(self):
+        """Kill any existing Chrome instances using the debug profile"""
+        try:
+            if self.platform in ["darwin", "linux"]:
+                subprocess.run(["pkill", "-f", "chrome-debug-profile"], 
+                             capture_output=True, check=False)
+            elif self.platform == "windows":
+                subprocess.run(["taskkill", "/F", "/FI", "WINDOWTITLE eq chrome-debug-profile*"], 
+                             capture_output=True, check=False)
+            time.sleep(1)  # Give processes time to terminate
+        except Exception as e:
+            logger.warning(f"Could not kill existing Chrome processes: {e}")
+
     async def start_all_services_async(self) -> Dict[str, bool]:
-        """Start all services in parallel with smart ready detection"""
-        services = ["mcp", "socketio", "dashboard", "plasmo", "tests"]
-        
+        """Start all services in parallel with ready detection"""
         self.print_status("🚀 Starting all services in parallel...", "header")
         
-        # Start all services concurrently
-        tasks = []
-        for service in services:
-            task = asyncio.create_task(self.start_service_async(service))
-            tasks.append((service, task))
-            
-        # Wait for all to complete
         results = {}
-        for service, task in tasks:
-            try:
-                results[service] = await task
-            except Exception as e:
-                self.print_status(f"❌ Error starting {service}: {e}", "error")
-                results[service] = False
-                
-        return results
-            
-    def stop_service(self, service_name: str) -> bool:
-        """Stop a service"""
-        self.print_status(f"🛑 Stopping {service_name}...", "info")
+        tasks = []
         
+        for service_name in self.service_configs.keys():
+            task = asyncio.create_task(self.start_service_async(service_name))
+            tasks.append((service_name, task))
+            
+        # Wait for all services to start
+        for service_name, task in tasks:
+            try:
+                results[service_name] = await task
+            except Exception as e:
+                self.print_status(f"❌ Error starting {service_name}: {e}", "error")
+                results[service_name] = False
+                
+        # Print summary
+        successful = sum(1 for success in results.values() if success)
+        total = len(results)
+        
+        if successful == total:
+            self.print_status(f"✅ All {total} services started successfully!", "success")
+        else:
+            failed = total - successful
+            self.print_status(f"⚠️  {successful}/{total} services started ({failed} failed)", "warning")
+            
+        return results
+
+    def stop_service(self, service_name: str) -> bool:
+        """Stop a specific service"""
+        config = self.service_configs.get(service_name)
+        if not config:
+            self.print_status(f"❌ Unknown service: {service_name}", "error")
+            return False
+            
         is_running, pid = self.is_service_running(service_name)
         if not is_running:
-            self.print_status(f"✅ Service '{service_name}' is not running", "warning")
+            self.print_status(f"⚠️  Service '{service_name}' is not running", "warning")
             return True
             
+        self.print_status(f"🛑 Stopping {service_name}...")
+        
         try:
             # Try to stop our tracked process first
             if service_name in self.running_processes:
@@ -350,87 +534,80 @@ class ServiceManager:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+                    proc.wait()
                     
                 del self.running_processes[service_name]
                 
-            # Kill any remaining processes
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            # Also kill any system processes
+            if pid:
                 try:
-                    cmdline = proc.info['cmdline']
-                    if not cmdline:
-                        continue
-                        
-                    cmdline_str = ' '.join(cmdline)
-                    should_kill = False
+                    process = psutil.Process(pid)
+                    process.terminate()
                     
-                    if service_name == "socketio":
-                        should_kill = ("socketio_server.js" in cmdline_str or 
-                                     "socketio_server_python.py" in cmdline_str)
-                    elif service_name == "mcp":
-                        should_kill = "mcp_server.py" in cmdline_str
-                    elif service_name == "plasmo":
-                        should_kill = "plasmo dev" in cmdline_str or "pnpm dev" in cmdline_str
-                    elif service_name == "tests":
-                        should_kill = "continuous_test_runner.py" in cmdline_str
-                    elif service_name == "dashboard":
-                        should_kill = "dashboard_server.py" in cmdline_str
+                    # Wait for graceful shutdown
+                    try:
+                        process.wait(timeout=5)
+                    except psutil.TimeoutExpired:
+                        process.kill()
                         
-                    if should_kill:
-                        process = psutil.Process(proc.info['pid'])
-                        process.terminate()
-                        time.sleep(1)
-                        if process.is_running():
-                            process.kill()
-                            
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
+                except psutil.NoSuchProcess:
+                    pass  # Process already dead
                     
+            # Special handling for Chrome Debug
+            if service_name == "chrome_debug":
+                self._kill_existing_chrome_debug()
+                
             self.print_status(f"✅ Service '{service_name}' stopped", "success")
             return True
             
         except Exception as e:
-            self.print_status(f"❌ Failed to stop '{service_name}': {e}", "error")
+            self.print_status(f"❌ Error stopping {service_name}: {e}", "error")
             return False
-            
+
     def restart_service(self, service_name: str) -> bool:
-        """Restart a service"""
-        self.print_status(f"🔄 Restarting {service_name}...", "info")
+        """Restart a specific service"""
+        self.print_status(f"🔄 Restarting {service_name}...")
         self.stop_service(service_name)
-        time.sleep(2)
+        time.sleep(2)  # Brief pause between stop and start
         return self.start_service(service_name)
-        
+
     def get_service_status(self) -> Dict[str, dict]:
         """Get status of all services"""
         status = {}
-        for service_name in self.service_configs:
+        
+        for service_name, config in self.service_configs.items():
             is_running, pid = self.is_service_running(service_name)
-            config = self.service_configs[service_name]
             
             status[service_name] = {
-                "running": is_running,
-                "pid": pid,
-                "implementation": config.implementation.value,
-                "port": config.port,
-                "command": ' '.join(config.command)
+                'running': is_running,
+                'pid': pid,
+                'port': config.port,
+                'implementation': config.implementation.value,
+                'auto_restart': config.auto_restart
             }
             
         return status
-        
+
     def print_service_status(self):
         """Print formatted service status"""
         self.print_status("=== Service Status ===", "header")
+        
         status = self.get_service_status()
         
         for service_name, info in status.items():
-            status_icon = "✅" if info["running"] else "❌"
-            impl_info = f"({info['implementation']})"
-            port_info = f" - Port {info['port']}" if info['port'] else ""
-            pid_info = f" - PID {info['pid']}" if info['pid'] else ""
+            status_icon = "✅" if info['running'] else "❌"
+            service_display = service_name.upper().replace('_', ' ')
             
-            self.print_status(f"{status_icon} {service_name.upper()}: {impl_info}{port_info}{pid_info}", 
-                            "success" if info["running"] else "error")
+            status_line = f"{status_icon} {service_display}: ({info['implementation']})"
+            
+            if info['port']:
+                status_line += f" - Port {info['port']}"
+                
+            if info['running'] and info['pid']:
+                status_line += f" - PID {info['pid']}"
+                
+            self.print_status(status_line)
 
-# CLI Interface
 @click.group()
 @click.pass_context
 def cli(ctx):
@@ -444,7 +621,8 @@ def cli(ctx):
 def start(ctx, service_name):
     """Start a service"""
     manager = ctx.obj['manager']
-    manager.start_service(service_name)
+    success = manager.start_service(service_name)
+    sys.exit(0 if success else 1)
 
 @cli.command()
 @click.argument('service_name')  
@@ -452,7 +630,8 @@ def start(ctx, service_name):
 def stop(ctx, service_name):
     """Stop a service"""
     manager = ctx.obj['manager']
-    manager.stop_service(service_name)
+    success = manager.stop_service(service_name)
+    sys.exit(0 if success else 1)
 
 @cli.command()
 @click.argument('service_name')
@@ -460,7 +639,8 @@ def stop(ctx, service_name):
 def restart(ctx, service_name):
     """Restart a service"""
     manager = ctx.obj['manager']
-    manager.restart_service(service_name)
+    success = manager.restart_service(service_name)
+    sys.exit(0 if success else 1)
 
 @cli.command()
 @click.pass_context
@@ -477,30 +657,32 @@ def start_all(ctx):
     
     async def run_parallel_start():
         results = await manager.start_all_services_async()
-        
-        # Summary
-        successful = sum(1 for success in results.values() if success)
-        total = len(results)
-        
-        if successful == total:
-            manager.print_status(f"✅ All {total} services started successfully!", "success")
-        else:
-            manager.print_status(f"⚠️ {successful}/{total} services started successfully", "warning")
-            
-        return all(results.values())
+        failed = sum(1 for success in results.values() if not success)
+        return failed == 0
     
-    return asyncio.run(run_parallel_start())
+    success = asyncio.run(run_parallel_start())
+    sys.exit(0 if success else 1)
 
 @cli.command()
 @click.pass_context
 def stop_all(ctx):
     """Stop all services"""
     manager = ctx.obj['manager']
-    services = ["tests", "plasmo", "socketio", "mcp"]
     
-    for service in services:
-        manager.stop_service(service)
-        time.sleep(1)
+    manager.print_status("🛑 Stopping all services...", "header")
+    
+    results = {}
+    for service_name in manager.service_configs.keys():
+        results[service_name] = manager.stop_service(service_name)
+        
+    successful = sum(1 for success in results.values() if success)
+    total = len(results)
+    
+    if successful == total:
+        manager.print_status(f"✅ All {total} services stopped successfully!", "success")
+    else:
+        failed = total - successful
+        manager.print_status(f"⚠️  {successful}/{total} services stopped ({failed} failed)", "warning")
 
 if __name__ == "__main__":
     cli() 

@@ -251,8 +251,17 @@ class TestRunner:
     async def send_to_socketio(self, result):
         """Send results to SocketIO server for web interface"""
         try:
-            requests.post(f"{self.socketio_server}/api/test-results", 
-                         json=result, timeout=2)
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.socketio_server}/api/test-results",
+                    json=result,
+                    timeout=aiohttp.ClientTimeout(total=2)
+                ) as response:
+                    if response.status == 200:
+                        logger.debug("✅ Test results sent to SocketIO server")
+                    else:
+                        logger.debug(f"⚠️ SocketIO server returned {response.status}")
         except Exception as e:
             logger.debug(f"Failed to send to SocketIO: {e}")
     

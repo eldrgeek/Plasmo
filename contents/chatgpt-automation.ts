@@ -229,6 +229,123 @@ function findChatGPTSubmitButton(): HTMLButtonElement | null {
     return null
 }
 
+// NEW: Correct completion detection using button transformation monitoring
+async function waitForChatGPTCompletion(originalSubmitHTML: string, originalSubmitClasses: string, timeout: number = 120000): Promise<boolean> {
+    const startTime = Date.now()
+    console.log("🕐 Waiting for ChatGPT to complete response using button transformation...")
+
+    while (Date.now() - startTime < timeout) {
+        const submitBtn = findChatGPTSubmitButton()
+
+        if (submitBtn) {
+            const currentHTML = submitBtn.innerHTML
+            const currentClasses = submitBtn.className
+
+            // Check if button has returned to original submit state
+            // This indicates generation is complete
+            if (currentHTML === originalSubmitHTML ||
+                (currentHTML.includes('Send') && !currentHTML.includes('Stop'))) {
+                console.log("✅ ChatGPT response complete - button returned to submit state")
+                await new Promise(resolve => setTimeout(resolve, 500)) // Safety wait
+                return true
+            }
+
+            // Log state changes for debugging
+            if (currentHTML !== originalSubmitHTML) {
+                // Still in stop/generating state
+                console.log("🔄 ChatGPT still generating (button in stop state)")
+            }
+        } else {
+            console.log("⚠️ Submit button not found during completion check")
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500)) // Check every 500ms
+    }
+
+    console.log("⚠️ ChatGPT completion detection timed out")
+    return false
+}
+
+// NEW: Enhanced automation with completion detection
+async function automateChatGPTWithCompletion(prompt: string): Promise<{
+    success: boolean,
+    message: string,
+    responseComplete: boolean
+}> {
+    try {
+        console.log("🤖 ChatGPT automation with completion detection:", prompt)
+
+        // Find input element
+        const inputElement = findChatGPTInput()
+        if (!inputElement) {
+            return { success: false, message: "ChatGPT input element not found", responseComplete: false }
+        }
+
+        // Submit the prompt
+        const success = await handleFormElement(inputElement, {
+            type: "text-field",
+            value: prompt,
+            delay: 80,
+            clearValue: true
+        })
+
+        if (!success) {
+            return { success: false, message: "Failed to inject prompt", responseComplete: false }
+        }
+
+        // Wait for React to process
+        await new Promise(resolve => setTimeout(resolve, 200))
+
+        // Find and click submit button
+        const submitBtn = findChatGPTSubmitButton()
+        if (!submitBtn) {
+            return { success: false, message: "ChatGPT submit button not found", responseComplete: false }
+        }
+
+        submitBtn.click()
+        console.log("✅ ChatGPT form submitted, waiting for completion...")
+
+        // Inject "Processing..." to indicate we're waiting
+        await new Promise(resolve => setTimeout(resolve, 1000)) // Let response start
+
+        await handleFormElement(inputElement, {
+            type: "text-field",
+            value: "Processing...",
+            delay: 50,
+            clearValue: true
+        })
+
+        // Store original button state before submission
+        const originalSubmitHTML = submitBtn.innerHTML
+        const originalSubmitClasses = submitBtn.className
+
+        // Wait for completion using button transformation detection
+        const responseComplete = await waitForChatGPTCompletion(originalSubmitHTML, originalSubmitClasses)
+
+        // Clear the "Processing..." text
+        await handleFormElement(inputElement, {
+            type: "text-field",
+            value: "",
+            delay: 50,
+            clearValue: true
+        })
+
+        return {
+            success: true,
+            message: "ChatGPT automation completed",
+            responseComplete
+        }
+
+    } catch (error) {
+        console.error("❌ ChatGPT automation failed:", error)
+        return {
+            success: false,
+            message: `Error: ${error instanceof Error ? error.message : String(error)}`,
+            responseComplete: false
+        }
+    }
+}
+
 // Global automation function for MCP server to call
 async function automateChatGPT(prompt: string): Promise<{ success: boolean, message: string }> {
     try {
@@ -276,10 +393,53 @@ async function automateChatGPT(prompt: string): Promise<{ success: boolean, mess
     }
 }
 
-// Make automation function globally accessible for MCP server
-; (window as any).automateChatGPT = automateChatGPT
+// NEW: Stop generation function using discovered stop button pattern
+async function stopChatGPTGeneration(): Promise<{ success: boolean, message: string }> {
+    try {
+        console.log("🛑 Attempting to stop ChatGPT generation...")
 
-    // Also provide a simpler alias
+        // Find the submit button (which should be in stop state if generating)
+        const submitBtn = findChatGPTSubmitButton()
+        if (!submitBtn) {
+            return { success: false, message: "Submit button not found - cannot stop generation" }
+        }
+
+        const currentHTML = submitBtn.innerHTML
+        console.log("Current button HTML:", currentHTML.substring(0, 100))
+
+        // Check if button is in stop state (different from original submit state)
+        if (currentHTML.includes('Stop') || currentHTML.includes('stop') ||
+            submitBtn.getAttribute('aria-label')?.includes('Stop')) {
+            console.log("🎯 Stop button detected - clicking to stop generation")
+            submitBtn.click()
+
+            // Wait a moment and verify it worked
+            await new Promise(resolve => setTimeout(resolve, 1000))
+
+            const newHTML = submitBtn.innerHTML
+            if (newHTML !== currentHTML) {
+                return { success: true, message: "Successfully stopped ChatGPT generation" }
+            } else {
+                return { success: false, message: "Stop button clicked but no state change detected" }
+            }
+        } else {
+            return { success: false, message: "ChatGPT does not appear to be generating (button not in stop state)" }
+        }
+
+    } catch (error) {
+        console.error("❌ Failed to stop ChatGPT generation:", error)
+        return { success: false, message: `Error: ${error instanceof Error ? error.message : String(error)}` }
+    }
+}
+
+// Make automation functions globally accessible for MCP server
+; (window as any).automateChatGPT = automateChatGPT
+    ; (window as any).automateChatGPTWithCompletion = automateChatGPTWithCompletion
+    ; (window as any).stopChatGPTGeneration = stopChatGPTGeneration
+
+    // Also provide simpler aliases
     ; (window as any).tellChatGPTTo = automateChatGPT
+    ; (window as any).tellChatGPTToAndWait = automateChatGPTWithCompletion
+    ; (window as any).stopChatGPT = stopChatGPTGeneration
 
 console.log("🤖 Advanced ChatGPT automation loaded - Ready for MCP control") 

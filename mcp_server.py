@@ -20,8 +20,32 @@ Transport Modes:
 VERSION CHANGELOG
 ================
 
-Version 2.0.0 - Consolidated Edition (Current)
-----------------------------------------------
+Version 2.2.0 - Enhanced AI-Assistant Edition (Current)
+----------------------------------------------------------
+🚀 MAJOR AI ASSISTANT OPTIMIZATIONS:
+
+AI-ASSISTANT SPECIFIC TOOLS:
+- ✅ Enhanced Error Logging: Agent-specific error tracking with detailed context
+- ✅ Smart File Operations: Advanced read/write with encoding detection, backups
+- ✅ Intelligent Editing: Line-based operations (insert, replace, delete ranges)
+- ✅ Batch Patching: Multiple file modifications in single operation
+- ✅ Advanced File Management: Copy, move, delete with confirmations
+- ✅ Error Recovery Tools: get_last_errors, get_error_by_id, clear_agent_errors
+- ✅ Performance Metrics: Execution time tracking, size change monitoring
+- ✅ Security Enhancements: Path validation, operation confirmations
+
+NEW TOOL CAPABILITIES:
+- smart_write_file: Multi-mode writing (overwrite, append, prepend)
+- smart_read_file: Auto-encoding detection, metadata inclusion  
+- smart_edit_file: Precise line-based editing operations
+- patch_file: Apply multiple changes atomically
+- file_manager: Advanced file operations with safety checks
+- get_last_errors: Retrieve recent errors by agent
+- get_error_by_id: Get specific error details
+- clear_agent_errors: Clean error logs
+
+Version 2.0.0 - Consolidated Edition
+------------------------------------
 🎯 Major consolidation and testing improvements:
 
 CONSOLIDATION:
@@ -83,13 +107,23 @@ Version 1.0.0 - Initial Implementation
 - Database operations (SQLite)
 - Git command integration
 
-CURRENT CAPABILITIES (v2.0.0)
+CURRENT CAPABILITIES (v2.2.0)
 =============================
-📁 File Operations (4 tools):
-   - read_file: Read files with security validation
-   - write_file: Write files with backup and validation  
+📁 Enhanced File Operations (9 tools):
+   - smart_read_file: Auto-encoding detection with metadata
+   - smart_write_file: Multi-mode writing with backups
+   - smart_edit_file: Precise line-based editing operations
+   - patch_file: Atomic multi-change operations
+   - file_manager: Advanced copy/move/delete with safety
+   - read_file: Legacy simple file reading
+   - write_file: Legacy simple file writing  
    - list_files: Directory listing with pattern matching
    - get_project_structure: Recursive directory analysis
+
+🔧 Error Management (3 tools):
+   - get_last_errors: Retrieve recent errors by agent
+   - get_error_by_id: Get specific error details with context
+   - clear_agent_errors: Clean error logs with confirmation
 
 🖥️  System Operations (2 tools):
    - get_system_info: Platform, memory, disk usage details
@@ -240,7 +274,7 @@ mcp = FastMCP("Cursor Development Assistant v2.1")
 # Configuration
 SERVER_PORT = 8000
 SERVER_HOST = "127.0.0.1"
-SERVER_VERSION = "2.1.0"  # Updated version
+SERVER_VERSION = "2.2.0"  # Enhanced AI-Assistant Edition
 SERVER_BUILD_TIME = datetime.now().isoformat()
 
 # Chrome Debug Protocol configuration
@@ -3095,6 +3129,973 @@ comm_hub = CommunicationHub()
 # ============================================================================
 # ENHANCED NOTIFICATION SYSTEM WITH EVENT-DRIVEN SUPPORT
 # ============================================================================
+
+# ============================================================================
+# ENHANCED ERROR LOGGING AND FILE OPERATIONS FOR AI ASSISTANTS
+# ============================================================================
+
+# Global error log storage with agent tracking
+agent_error_logs = {}  # agent_name -> list of error entries
+error_log_lock = threading.Lock()
+
+def log_agent_error(operation: str, error: Exception, context: dict = None, agent_name: str = None) -> str:
+    """
+    Log error with agent tracking and return error ID for retrieval.
+    
+    Args:
+        operation: Name of the operation that failed
+        error: The exception that occurred
+        context: Additional context information
+        agent_name: Name of the agent (auto-detected if None)
+        
+    Returns:
+        Error ID for later retrieval
+    """
+    if agent_name is None:
+        agent_name = get_agent_name()
+    
+    error_id = f"{int(time.time() * 1000000)}_{uuid.uuid4().hex[:8]}"
+    
+    error_entry = {
+        "error_id": error_id,
+        "operation": operation,
+        "error": str(error),
+        "error_type": type(error).__name__,
+        "traceback": traceback.format_exc(),
+        "context": make_json_safe(context) if context else None,
+        "agent_name": agent_name,
+        "timestamp": datetime.now().isoformat(),
+        "unix_timestamp": time.time()
+    }
+    
+    # Store error with thread safety
+    with error_log_lock:
+        if agent_name not in agent_error_logs:
+            agent_error_logs[agent_name] = []
+        
+        agent_error_logs[agent_name].append(error_entry)
+        
+        # Keep only last 50 errors per agent to prevent memory bloat
+        if len(agent_error_logs[agent_name]) > 50:
+            agent_error_logs[agent_name] = agent_error_logs[agent_name][-50:]
+    
+    # Log to file as well
+    logger.error(f"Error {error_id} in {operation} for agent {agent_name}: {error}", exc_info=True)
+    
+    return error_id
+
+def enhanced_handle_error(operation: str, error: Exception, context: dict = None, agent_name: str = None) -> dict:
+    """Enhanced error response with agent tracking and detailed information."""
+    error_id = log_agent_error(operation, error, context, agent_name)
+    
+    error_response = {
+        "success": False,
+        "operation": operation,
+        "error": str(error),
+        "error_type": type(error).__name__,
+        "error_id": error_id,
+        "timestamp": datetime.now().isoformat(),
+        "agent_name": agent_name or get_agent_name(),
+        "suggestion": get_error_suggestion(error, operation)
+    }
+    
+    if context:
+        error_response["context"] = make_json_safe(context)
+    
+    return error_response
+
+def get_error_suggestion(error: Exception, operation: str) -> str:
+    """Get helpful suggestion based on error type and operation."""
+    error_type = type(error).__name__
+    
+    suggestions = {
+        "FileNotFoundError": f"File not found. Check if the path exists or create the directory first.",
+        "PermissionError": f"Permission denied. Ensure you have write access to the target location.",
+        "UnicodeDecodeError": f"File encoding issue. The file may be binary or use a different encoding.",
+        "JSONDecodeError": f"Invalid JSON format. Check the JSON syntax.",
+        "ConnectionError": f"Network connection failed. Check if the service is running.",
+        "TimeoutError": f"Operation timed out. The service may be overloaded.",
+        "ValueError": f"Invalid parameter value. Check the input parameters.",
+        "TypeError": f"Incorrect data type. Check the parameter types.",
+        "ImportError": f"Missing dependency. Install required packages.",
+        "OSError": f"Operating system error. Check system resources and permissions."
+    }
+    
+    return suggestions.get(error_type, f"Unexpected {error_type} in {operation}. Check the error details above.")
+
+@mcp.tool()
+def get_last_errors(agent_name: str = None, limit: int = 10, operation_filter: str = None) -> Dict[str, Any]:
+    """
+    Get recent errors for an agent with filtering options.
+    
+    Args:
+        agent_name: Agent name (defaults to current agent)
+        limit: Maximum number of errors to return
+        operation_filter: Filter by operation name (optional)
+        
+    Returns:
+        Dictionary with error list and metadata
+    """
+    try:
+        if agent_name is None:
+            agent_name = get_agent_name()
+        
+        with error_log_lock:
+            agent_errors = agent_error_logs.get(agent_name, [])
+        
+        # Apply operation filter if specified
+        if operation_filter:
+            agent_errors = [e for e in agent_errors if operation_filter.lower() in e["operation"].lower()]
+        
+        # Sort by timestamp (newest first) and limit
+        sorted_errors = sorted(agent_errors, key=lambda x: x["unix_timestamp"], reverse=True)
+        limited_errors = sorted_errors[:limit]
+        
+        return {
+            "success": True,
+            "agent_name": agent_name,
+            "errors": limited_errors,
+            "total_errors": len(agent_errors),
+            "filtered_count": len(limited_errors),
+            "operation_filter": operation_filter,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return handle_error("get_last_errors", e)
+
+@mcp.tool()
+def get_error_by_id(error_id: str, agent_name: str = None) -> Dict[str, Any]:
+    """
+    Get specific error by ID.
+    
+    Args:
+        error_id: Error ID to retrieve
+        agent_name: Agent name (defaults to current agent)
+        
+    Returns:
+        Error details or not found message
+    """
+    try:
+        if agent_name is None:
+            agent_name = get_agent_name()
+        
+        with error_log_lock:
+            agent_errors = agent_error_logs.get(agent_name, [])
+        
+        for error_entry in agent_errors:
+            if error_entry["error_id"] == error_id:
+                return {
+                    "success": True,
+                    "error_found": True,
+                    "error": error_entry,
+                    "timestamp": datetime.now().isoformat()
+                }
+        
+        return {
+            "success": False,
+            "error_found": False,
+            "message": f"Error ID {error_id} not found for agent {agent_name}",
+            "available_error_ids": [e["error_id"] for e in agent_errors[-5:]],  # Show last 5 error IDs
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return handle_error("get_error_by_id", e)
+
+@mcp.tool()
+def clear_agent_errors(agent_name: str = None, confirm: bool = False) -> Dict[str, Any]:
+    """
+    Clear error log for an agent.
+    
+    Args:
+        agent_name: Agent name (defaults to current agent)
+        confirm: Must be True to actually clear errors
+        
+    Returns:
+        Confirmation of clearing or safety message
+    """
+    try:
+        if agent_name is None:
+            agent_name = get_agent_name()
+        
+        if not confirm:
+            return {
+                "success": False,
+                "message": "Confirmation required. Set confirm=True to clear errors.",
+                "current_error_count": len(agent_error_logs.get(agent_name, [])),
+                "warning": "This action cannot be undone."
+            }
+        
+        with error_log_lock:
+            old_count = len(agent_error_logs.get(agent_name, []))
+            agent_error_logs[agent_name] = []
+        
+        return {
+            "success": True,
+            "message": f"Cleared {old_count} errors for agent {agent_name}",
+            "errors_cleared": old_count,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return handle_error("clear_agent_errors", e)
+
+# Enhanced File Operations for AI Assistants
+@mcp.tool()
+def smart_write_file(
+    file_path: str, 
+    content: str, 
+    mode: str = "overwrite",
+    backup: bool = True,
+    create_dirs: bool = True,
+    encoding: str = "utf-8"
+) -> Dict[str, Any]:
+    """
+    Advanced file writing with multiple modes and comprehensive error handling.
+    
+    Args:
+        file_path: Path to the file to write 
+        content: Content to write
+        mode: Write mode ('overwrite', 'append', 'insert_at_line', 'replace_section')
+        backup: Create backup before writing
+        create_dirs: Create parent directories if they don't exist
+        encoding: File encoding (default: utf-8)
+        
+    Returns:
+        Detailed write result with metadata
+    """
+    agent_name = get_agent_name()
+    start_time = time.time()
+    
+    try:
+        file_path = Path(file_path).resolve()
+        cwd = Path.cwd().resolve()
+        
+        # Security validation
+        if not str(file_path).startswith(str(cwd)):
+            error = SecurityError("Access denied: path outside working directory")
+            return enhanced_handle_error("smart_write_file", error, 
+                                       {"file_path": str(file_path), "mode": mode}, agent_name)
+        
+        original_content = ""
+        file_existed = file_path.exists()
+        original_size = 0
+        
+        # Read original content if file exists
+        if file_existed:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    original_content = f.read()
+                    original_size = len(original_content.encode(encoding))
+            except UnicodeDecodeError:
+                # Try different encodings
+                for alt_encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                    try:
+                        with open(file_path, 'r', encoding=alt_encoding) as f:
+                            original_content = f.read()
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    raise UnicodeDecodeError(f"Could not decode file with any supported encoding")
+        
+        # Create backup if requested and file exists
+        backup_path = None
+        if backup and file_existed and original_content:
+            backup_path = file_path.with_suffix(file_path.suffix + f'.backup.{int(time.time())}')
+            with open(backup_path, 'w', encoding=encoding) as f:
+                f.write(original_content)
+            logger.info(f"Created backup: {backup_path}")
+        
+        # Create parent directories if requested
+        if create_dirs:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Handle different write modes
+        final_content = content
+        
+        if mode == "append":
+            final_content = original_content + content
+        elif mode == "prepend":
+            final_content = content + original_content
+        elif mode == "overwrite":
+            final_content = content
+        else:
+            # Default to overwrite for unknown modes
+            logger.warning(f"Unknown write mode '{mode}', defaulting to overwrite")
+            final_content = content
+        
+        # Write the file
+        with open(file_path, 'w', encoding=encoding) as f:
+            f.write(final_content)
+        
+        new_size = len(final_content.encode(encoding))
+        elapsed_time = time.time() - start_time
+        
+        result = {
+            "success": True,
+            "operation": "smart_write_file",
+            "file_path": str(file_path.relative_to(cwd)),
+            "mode": mode,
+            "file_existed": file_existed,
+            "backup_created": backup_path is not None,
+            "backup_path": str(backup_path.relative_to(cwd)) if backup_path else None,
+            "original_size": original_size,
+            "new_size": new_size,
+            "size_change": new_size - original_size,
+            "lines_written": len(final_content.split('\n')),
+            "encoding": encoding,
+            "execution_time": round(elapsed_time, 3),
+            "timestamp": datetime.now().isoformat(),
+            "agent_name": agent_name
+        }
+        
+        logger.info(f"Successfully wrote {new_size} bytes to {file_path} in {elapsed_time:.3f}s")
+        return result
+        
+    except Exception as e:
+        context = {
+            "file_path": str(file_path) if 'file_path' in locals() else file_path,
+            "mode": mode,
+            "content_length": len(content),
+            "backup": backup,
+            "create_dirs": create_dirs,
+            "encoding": encoding
+        }
+        return enhanced_handle_error("smart_write_file", e, context, agent_name)
+
+@mcp.tool()
+def smart_read_file(
+    file_path: str,
+    encoding: str = "auto",
+    max_size: int = 50 * 1024 * 1024,  # 50MB limit
+    return_metadata: bool = True
+) -> Dict[str, Any]:
+    """
+    Advanced file reading with encoding detection and metadata.
+    
+    Args:
+        file_path: Path to the file to read
+        encoding: Encoding ('auto', 'utf-8', 'latin-1', etc.)
+        max_size: Maximum file size to read (bytes)
+        return_metadata: Include file metadata in response
+        
+    Returns:
+        File content and metadata or error information
+    """
+    agent_name = get_agent_name()
+    start_time = time.time()
+    
+    try:
+        file_path = Path(file_path).resolve()
+        cwd = Path.cwd().resolve()
+        
+        # Security validation
+        if not str(file_path).startswith(str(cwd)):
+            error = SecurityError("Access denied: path outside working directory")
+            return enhanced_handle_error("smart_read_file", error, 
+                                       {"file_path": str(file_path)}, agent_name)
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
+        if not file_path.is_file():
+            raise ValueError(f"Path is not a file: {file_path}")
+        
+        # Check file size
+        file_size = file_path.stat().st_size
+        if file_size > max_size:
+            raise ValueError(f"File too large: {file_size} bytes (max: {max_size})")
+        
+        # Detect encoding if auto
+        content = ""
+        detected_encoding = encoding
+        
+        if encoding == "auto":
+            # Try common encodings
+            for enc in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
+                try:
+                    with open(file_path, 'r', encoding=enc) as f:
+                        content = f.read()
+                    detected_encoding = enc
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                raise UnicodeDecodeError("Could not decode file with any supported encoding")
+        else:
+            with open(file_path, 'r', encoding=encoding) as f:
+                content = f.read()
+            detected_encoding = encoding
+        
+        elapsed_time = time.time() - start_time
+        
+        result = {
+            "success": True,
+            "operation": "smart_read_file",
+            "content": content,
+            "agent_name": agent_name
+        }
+        
+        if return_metadata:
+            stat = file_path.stat()
+            result.update({
+                "metadata": {
+                    "file_path": str(file_path.relative_to(cwd)),
+                    "size": file_size,
+                    "lines": len(content.split('\n')),
+                    "encoding": detected_encoding,
+                    "modified_time": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "execution_time": round(elapsed_time, 3),
+                    "timestamp": datetime.now().isoformat()
+                }
+            })
+        
+        logger.info(f"Successfully read {file_size} bytes from {file_path} in {elapsed_time:.3f}s")
+        return result
+        
+    except Exception as e:
+        context = {
+            "file_path": str(file_path) if 'file_path' in locals() else file_path,
+            "encoding": encoding,
+            "max_size": max_size,
+            "return_metadata": return_metadata
+        }
+        return enhanced_handle_error("smart_read_file", e, context, agent_name)
+
+# Add SecurityError class for security violations
+class SecurityError(Exception):
+    """Custom exception for security violations."""
+    pass
+
+@mcp.tool()
+def smart_edit_file(
+    file_path: str,
+    operation: str,
+    content: str = "",
+    line_number: int = None,
+    start_line: int = None,
+    end_line: int = None,
+    find_text: str = None,
+    replace_text: str = None,
+    backup: bool = True
+) -> Dict[str, Any]:
+    """
+    Advanced file editing with line-specific operations.
+    
+    Args:
+        file_path: Path to the file to edit
+        operation: Edit operation ('insert_at_line', 'replace_line', 'replace_range', 'find_replace', 'delete_line', 'delete_range')
+        content: Content to insert/replace (required for insert/replace operations)
+        line_number: Line number for single-line operations (1-based)
+        start_line: Start line for range operations (1-based)
+        end_line: End line for range operations (1-based, inclusive)
+        find_text: Text to find for find_replace operation
+        replace_text: Replacement text for find_replace operation
+        backup: Create backup before editing
+        
+    Returns:
+        Edit result with detailed information
+    """
+    agent_name = get_agent_name()
+    start_time = time.time()
+    
+    try:
+        file_path = Path(file_path).resolve()
+        cwd = Path.cwd().resolve()
+        
+        # Security validation
+        if not str(file_path).startswith(str(cwd)):
+            error = SecurityError("Access denied: path outside working directory")
+            return enhanced_handle_error("smart_edit_file", error, 
+                                       {"file_path": str(file_path), "operation": operation}, agent_name)
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
+        # Read original content
+        with open(file_path, 'r', encoding='utf-8') as f:
+            original_lines = f.readlines()
+        
+        original_content = ''.join(original_lines)
+        total_lines = len(original_lines)
+        
+        # Create backup if requested
+        backup_path = None
+        if backup:
+            backup_path = file_path.with_suffix(file_path.suffix + f'.backup.{int(time.time())}')
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(original_content)
+        
+        # Perform the edit operation
+        new_lines = original_lines.copy()
+        lines_changed = 0
+        
+        if operation == "insert_at_line":
+            if line_number is None:
+                raise ValueError("line_number required for insert_at_line operation")
+            
+            if line_number < 1:
+                line_number = 1
+            elif line_number > total_lines + 1:
+                line_number = total_lines + 1
+            
+            # Ensure content ends with newline
+            if content and not content.endswith('\n'):
+                content += '\n'
+            
+            new_lines.insert(line_number - 1, content)
+            lines_changed = 1
+            
+        elif operation == "replace_line":
+            if line_number is None:
+                raise ValueError("line_number required for replace_line operation")
+            
+            if line_number < 1 or line_number > total_lines:
+                raise ValueError(f"line_number {line_number} out of range (1-{total_lines})")
+            
+            # Ensure content ends with newline
+            if content and not content.endswith('\n'):
+                content += '\n'
+            
+            new_lines[line_number - 1] = content
+            lines_changed = 1
+            
+        elif operation == "replace_range":
+            if start_line is None or end_line is None:
+                raise ValueError("start_line and end_line required for replace_range operation")
+            
+            if start_line < 1 or end_line > total_lines or start_line > end_line:
+                raise ValueError(f"Invalid range: {start_line}-{end_line} (file has {total_lines} lines)")
+            
+            # Ensure content ends with newline if not empty
+            if content and not content.endswith('\n'):
+                content += '\n'
+            
+            # Replace the range
+            del new_lines[start_line - 1:end_line]
+            if content:
+                new_lines.insert(start_line - 1, content)
+            
+            lines_changed = end_line - start_line + 1
+            
+        elif operation == "find_replace":
+            if find_text is None:
+                raise ValueError("find_text required for find_replace operation")
+            
+            if replace_text is None:
+                replace_text = ""
+            
+            for i, line in enumerate(new_lines):
+                if find_text in line:
+                    new_lines[i] = line.replace(find_text, replace_text)
+                    lines_changed += 1
+                    
+        elif operation == "delete_line":
+            if line_number is None:
+                raise ValueError("line_number required for delete_line operation")
+            
+            if line_number < 1 or line_number > total_lines:
+                raise ValueError(f"line_number {line_number} out of range (1-{total_lines})")
+            
+            del new_lines[line_number - 1]
+            lines_changed = 1
+            
+        elif operation == "delete_range":
+            if start_line is None or end_line is None:
+                raise ValueError("start_line and end_line required for delete_range operation")
+            
+            if start_line < 1 or end_line > total_lines or start_line > end_line:
+                raise ValueError(f"Invalid range: {start_line}-{end_line} (file has {total_lines} lines)")
+            
+            del new_lines[start_line - 1:end_line]
+            lines_changed = end_line - start_line + 1
+            
+        else:
+            raise ValueError(f"Unknown operation: {operation}")
+        
+        # Write the modified content
+        new_content = ''.join(new_lines)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        elapsed_time = time.time() - start_time
+        
+        result = {
+            "success": True,
+            "operation": "smart_edit_file",
+            "edit_operation": operation,
+            "file_path": str(file_path.relative_to(cwd)),
+            "backup_created": backup_path is not None,
+            "backup_path": str(backup_path.relative_to(cwd)) if backup_path else None,
+            "original_lines": total_lines,
+            "new_lines": len(new_lines),
+            "lines_changed": lines_changed,
+            "original_size": len(original_content.encode('utf-8')),
+            "new_size": len(new_content.encode('utf-8')),
+            "execution_time": round(elapsed_time, 3),
+            "timestamp": datetime.now().isoformat(),
+            "agent_name": agent_name
+        }
+        
+        logger.info(f"Successfully edited {file_path} ({operation}) in {elapsed_time:.3f}s")
+        return result
+        
+    except Exception as e:
+        context = {
+            "file_path": str(file_path) if 'file_path' in locals() else file_path,
+            "operation": operation,
+            "line_number": line_number,
+            "start_line": start_line,
+            "end_line": end_line,
+            "find_text": find_text,
+            "replace_text": replace_text
+        }
+        return enhanced_handle_error("smart_edit_file", e, context, agent_name)
+
+@mcp.tool()
+def patch_file(
+    file_path: str,
+    patches: List[Dict[str, Any]],
+    backup: bool = True,
+    validate: bool = True
+) -> Dict[str, Any]:
+    """
+    Apply multiple patches to a file in a single operation.
+    
+    Args:
+        file_path: Path to the file to patch
+        patches: List of patch operations, each containing:
+                 - operation: 'insert', 'replace', 'delete', 'find_replace'
+                 - line_number: Line number (for insert/replace/delete)
+                 - content: Content to insert/replace (for insert/replace)
+                 - find_text: Text to find (for find_replace)
+                 - replace_text: Replacement text (for find_replace)
+        backup: Create backup before patching
+        validate: Validate patch operations before applying
+        
+    Returns:
+        Patch result with detailed information
+    """
+    agent_name = get_agent_name()
+    start_time = time.time()
+    
+    try:
+        file_path = Path(file_path).resolve()
+        cwd = Path.cwd().resolve()
+        
+        # Security validation
+        if not str(file_path).startswith(str(cwd)):
+            error = SecurityError("Access denied: path outside working directory")
+            return enhanced_handle_error("patch_file", error, 
+                                       {"file_path": str(file_path)}, agent_name)
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
+        # Read original content
+        with open(file_path, 'r', encoding='utf-8') as f:
+            original_lines = f.readlines()
+        
+        original_content = ''.join(original_lines)
+        total_lines = len(original_lines)
+        
+        # Validate patches if requested
+        if validate:
+            for i, patch in enumerate(patches):
+                if not isinstance(patch, dict):
+                    raise ValueError(f"Patch {i} must be a dictionary")
+                
+                operation = patch.get('operation')
+                if not operation:
+                    raise ValueError(f"Patch {i} missing 'operation' field")
+                
+                if operation not in ['insert', 'replace', 'delete', 'find_replace']:
+                    raise ValueError(f"Patch {i} has invalid operation: {operation}")
+                
+                if operation in ['insert', 'replace', 'delete']:
+                    if 'line_number' not in patch:
+                        raise ValueError(f"Patch {i} missing 'line_number' for {operation} operation")
+                    
+                    line_num = patch['line_number']
+                    if operation == 'insert':
+                        if line_num < 1 or line_num > total_lines + 1:
+                            raise ValueError(f"Patch {i} line_number {line_num} out of range")
+                    else:
+                        if line_num < 1 or line_num > total_lines:
+                            raise ValueError(f"Patch {i} line_number {line_num} out of range")
+                
+                if operation in ['insert', 'replace'] and 'content' not in patch:
+                    raise ValueError(f"Patch {i} missing 'content' for {operation} operation")
+                
+                if operation == 'find_replace' and 'find_text' not in patch:
+                    raise ValueError(f"Patch {i} missing 'find_text' for find_replace operation")
+        
+        # Create backup if requested
+        backup_path = None
+        if backup:
+            backup_path = file_path.with_suffix(file_path.suffix + f'.backup.{int(time.time())}')
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(original_content)
+        
+        # Apply patches (sort by line number for insert/replace/delete operations)
+        new_lines = original_lines.copy()
+        patches_applied = []
+        total_changes = 0
+        
+        # Separate find_replace patches from line-based patches
+        line_patches = [p for p in patches if p['operation'] in ['insert', 'replace', 'delete']]
+        find_replace_patches = [p for p in patches if p['operation'] == 'find_replace']
+        
+        # Sort line patches by line number in reverse order to avoid index shifting issues
+        line_patches.sort(key=lambda x: x['line_number'], reverse=True)
+        
+        # Apply find_replace patches first
+        for patch in find_replace_patches:
+            find_text = patch['find_text']
+            replace_text = patch.get('replace_text', '')
+            changes_made = 0
+            
+            for i, line in enumerate(new_lines):
+                if find_text in line:
+                    new_lines[i] = line.replace(find_text, replace_text)
+                    changes_made += 1
+            
+            patches_applied.append({
+                "operation": "find_replace",
+                "find_text": find_text,
+                "replace_text": replace_text,
+                "changes_made": changes_made
+            })
+            total_changes += changes_made
+        
+        # Apply line-based patches
+        for patch in line_patches:
+            operation = patch['operation']
+            line_number = patch['line_number']
+            
+            if operation == 'insert':
+                content = patch['content']
+                if not content.endswith('\n'):
+                    content += '\n'
+                new_lines.insert(line_number - 1, content)
+                patches_applied.append({
+                    "operation": "insert",
+                    "line_number": line_number,
+                    "content_length": len(content)
+                })
+                total_changes += 1
+                
+            elif operation == 'replace':
+                content = patch['content']
+                if not content.endswith('\n'):
+                    content += '\n'
+                new_lines[line_number - 1] = content
+                patches_applied.append({
+                    "operation": "replace",
+                    "line_number": line_number,
+                    "content_length": len(content)
+                })
+                total_changes += 1
+                
+            elif operation == 'delete':
+                del new_lines[line_number - 1]
+                patches_applied.append({
+                    "operation": "delete",
+                    "line_number": line_number
+                })
+                total_changes += 1
+        
+        # Write the modified content
+        new_content = ''.join(new_lines)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        elapsed_time = time.time() - start_time
+        
+        result = {
+            "success": True,
+            "operation": "patch_file",
+            "file_path": str(file_path.relative_to(cwd)),
+            "backup_created": backup_path is not None,
+            "backup_path": str(backup_path.relative_to(cwd)) if backup_path else None,
+            "patches_requested": len(patches),
+            "patches_applied": len(patches_applied),
+            "total_changes": total_changes,
+            "original_lines": total_lines,
+            "new_lines": len(new_lines),
+            "original_size": len(original_content.encode('utf-8')),
+            "new_size": len(new_content.encode('utf-8')),
+            "execution_time": round(elapsed_time, 3),
+            "patch_details": patches_applied,
+            "timestamp": datetime.now().isoformat(),
+            "agent_name": agent_name
+        }
+        
+        logger.info(f"Successfully patched {file_path} with {len(patches)} patches in {elapsed_time:.3f}s")
+        return result
+        
+    except Exception as e:
+        context = {
+            "file_path": str(file_path) if 'file_path' in locals() else file_path,
+            "patches": patches,
+            "backup": backup,
+            "validate": validate
+        }
+        return enhanced_handle_error("patch_file", e, context, agent_name)
+
+@mcp.tool()
+def file_manager(
+    operation: str,
+    file_path: str = None,
+    destination: str = None,
+    pattern: str = None,
+    confirm: bool = False
+) -> Dict[str, Any]:
+    """
+    Advanced file management operations.
+    
+    Args:
+        operation: File operation ('copy', 'move', 'delete', 'mkdir', 'rmdir', 'backup', 'restore')
+        file_path: Source file/directory path
+        destination: Destination path (for copy/move operations)
+        pattern: Pattern for batch operations
+        confirm: Confirmation for destructive operations
+        
+    Returns:
+        Operation result with detailed information
+    """
+    agent_name = get_agent_name()
+    start_time = time.time()
+    
+    try:
+        if operation in ['copy', 'move'] and not destination:
+            raise ValueError(f"{operation} operation requires destination parameter")
+        
+        if operation in ['delete', 'rmdir'] and not confirm:
+            return {
+                "success": False,
+                "message": f"Confirmation required for {operation} operation. Set confirm=True to proceed.",
+                "warning": "This action cannot be undone.",
+                "operation": operation,
+                "file_path": file_path
+            }
+        
+        cwd = Path.cwd().resolve()
+        
+        if file_path:
+            source_path = Path(file_path).resolve()
+            # Security validation
+            if not str(source_path).startswith(str(cwd)):
+                error = SecurityError("Access denied: source path outside working directory")
+                return enhanced_handle_error("file_manager", error, 
+                                           {"operation": operation, "file_path": file_path}, agent_name)
+        
+        if destination:
+            dest_path = Path(destination).resolve()
+            # Security validation
+            if not str(dest_path).startswith(str(cwd)):
+                error = SecurityError("Access denied: destination path outside working directory")
+                return enhanced_handle_error("file_manager", error, 
+                                           {"operation": operation, "destination": destination}, agent_name)
+        
+        result = {
+            "success": True,
+            "operation": operation,
+            "agent_name": agent_name,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        if operation == "copy":
+            if source_path.is_file():
+                shutil.copy2(source_path, dest_path)
+                result.update({
+                    "source": str(source_path.relative_to(cwd)),
+                    "destination": str(dest_path.relative_to(cwd)),
+                    "size": source_path.stat().st_size,
+                    "type": "file"
+                })
+            elif source_path.is_dir():
+                shutil.copytree(source_path, dest_path, dirs_exist_ok=True)
+                result.update({
+                    "source": str(source_path.relative_to(cwd)),
+                    "destination": str(dest_path.relative_to(cwd)),
+                    "type": "directory"
+                })
+            else:
+                raise FileNotFoundError(f"Source not found: {source_path}")
+                
+        elif operation == "move":
+            shutil.move(str(source_path), str(dest_path))
+            result.update({
+                "source": str(source_path.relative_to(cwd)),
+                "destination": str(dest_path.relative_to(cwd)),
+                "type": "file" if source_path.is_file() else "directory"
+            })
+            
+        elif operation == "delete":
+            if source_path.is_file():
+                source_path.unlink()
+                result.update({
+                    "deleted": str(source_path.relative_to(cwd)),
+                    "type": "file"
+                })
+            elif source_path.is_dir():
+                shutil.rmtree(source_path)
+                result.update({
+                    "deleted": str(source_path.relative_to(cwd)),
+                    "type": "directory"
+                })
+            else:
+                raise FileNotFoundError(f"Path not found: {source_path}")
+                
+        elif operation == "mkdir":
+            source_path.mkdir(parents=True, exist_ok=True)
+            result.update({
+                "created": str(source_path.relative_to(cwd)),
+                "type": "directory"
+            })
+            
+        elif operation == "backup":
+            if not source_path.exists():
+                raise FileNotFoundError(f"Source not found: {source_path}")
+            
+            backup_path = source_path.with_suffix(source_path.suffix + f'.backup.{int(time.time())}')
+            
+            if source_path.is_file():
+                shutil.copy2(source_path, backup_path)
+            else:
+                shutil.copytree(source_path, backup_path)
+            
+            result.update({
+                "source": str(source_path.relative_to(cwd)),
+                "backup": str(backup_path.relative_to(cwd)),
+                "type": "file" if source_path.is_file() else "directory"
+            })
+            
+        else:
+            raise ValueError(f"Unknown operation: {operation}")
+        
+        elapsed_time = time.time() - start_time
+        result["execution_time"] = round(elapsed_time, 3)
+        
+        logger.info(f"Successfully completed {operation} operation in {elapsed_time:.3f}s")
+        return result
+        
+    except Exception as e:
+        context = {
+            "operation": operation,
+            "file_path": file_path,
+            "destination": destination,
+            "pattern": pattern,
+            "confirm": confirm
+        }
+        return enhanced_handle_error("file_manager", e, context, agent_name)
+
+# Add SecurityError class for security violations
+
+# ... existing code ...
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Consolidated MCP Server v2.0")

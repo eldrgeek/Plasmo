@@ -192,3 +192,53 @@ Content scripts automatically inject based on the `matches` pattern in the confi
 ## License
 
 MIT License - feel free to use this as a starting point for your own extensions!
+
+## Gemini Native Injector
+
+The `GeminiNativeInjector` class provides cross-platform automation for interacting with the Gemini AI chat interface using native keyboard inputs. This class is designed to work across macOS, Windows, and Linux platforms, leveraging platform-specific tools like AppleScript, PowerShell, and xdotool.
+
+### Key Functions
+
+- **`__init__`**: Initializes the injector and determines the platform.
+
+- **`_execute_applescript`**: Executes AppleScript commands on macOS.
+
+- **`_execute_powershell`**: Executes PowerShell commands on Windows.
+
+- **`_execute_xdotool`**: Executes xdotool commands on Linux.
+
+- **`copy_to_clipboard`**: Copies text to the system clipboard, with platform-specific implementations.
+
+- **`paste_from_clipboard`**: Pastes text from the clipboard using native keyboard shortcuts.
+
+- **`focus_browser`**: Focuses the specified web browser application.
+
+- **`send_keyboard_shortcut`**: Sends a keyboard shortcut to the focused application.
+
+- **`type_text`**: Types text into the focused input with an optional typing delay for more human-like input.
+
+- **`send_enter`**: Sends the Enter key.
+
+- **`send_tab`**: Sends the Tab key for navigation.
+
+- **`click_at_coordinates`**: Clicks at specific screen coordinates.
+
+- **`inject_gemini_prompt`**: Injects a prompt into the Gemini AI interface using native keyboard automation. It supports both clipboard and typing methods, with options for tab navigation and typing delay.
+
+### Usage
+
+The `GeminiNativeInjector` can be used via the command line to automate the injection of prompts into the Gemini AI chat interface. It supports various options for browser focus, clipboard usage, and typing delay, making it flexible for different automation needs.
+
+### Integration
+
+For integration with another Cursor instance, ensure that the platform-specific dependencies (AppleScript, PowerShell, xdotool) are available on the target system. The `inject_gemini_prompt` function is the primary entry point for automation and can be customized to fit specific integration requirements.
+
+### Example
+
+To use the injector from the command line:
+
+```bash
+python gemini_native_injector.py 'Your prompt here' --browser=Chrome --use-clipboard
+```
+
+This command will focus the Chrome browser, copy the prompt to the clipboard, and paste it into the Gemini AI chat interface.

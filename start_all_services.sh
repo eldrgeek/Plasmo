@@ -3,8 +3,14 @@
 # Start All Development Services with Auto-Restart
 # This script starts MCP server, Plasmo dev, and SocketIO server with file watching
 
+# Source service utilities
+source "./service_utils.sh"
+
 echo "🚀 Starting All Development Services"
 echo "====================================="
+
+# Initialize service registry
+init_registry
 
 # Colors for output
 RED='\033[0;31m'
@@ -83,8 +89,10 @@ start_mcp_server() {
         # Check if the auto-restart script is running
         if kill -0 $MCP_PID 2>/dev/null; then
             print_status "✅ MCP Server started with auto-restart script (PID: $MCP_PID)"
-            else
+            update_service "mcp_server" "$MCP_PID" "8000" "running"
+        else
             print_error "❌ MCP Server auto-restart script failed to start"
+            update_service "mcp_server" "null" "null" "failed"
         fi
     else
         print_error "❌ start_mcp_auto_restart.sh not found"
@@ -95,6 +103,7 @@ start_mcp_server() {
         MCP_PID=$!
         disown
         print_status "✅ MCP Server started (simple mode, no auto-restart)"
+        update_service "mcp_server" "$MCP_PID" "8000" "running"
     fi
 }
 
@@ -107,6 +116,7 @@ start_socketio_server() {
     SOCKETIO_PID=$!
     disown
     print_status "✅ SocketIO Server started with file watching (PID: $SOCKETIO_PID)"
+    update_service "socketio_server" "$SOCKETIO_PID" "3001" "running"
 }
 
 # Function to start Plasmo dev server
@@ -117,6 +127,11 @@ start_plasmo_dev() {
     PLASMO_PID=$!
     disown
     print_status "✅ Plasmo Dev Server started (PID: $PLASMO_PID)"
+    
+    # Give Plasmo a moment to start and detect its port
+    sleep 3
+    PLASMO_PORT=$(detect_plasmo_port "$PLASMO_PID")
+    update_service "plasmo_dev" "$PLASMO_PID" "$PLASMO_PORT" "running"
 }
 
 # Function to start Continuous Test Runner
@@ -127,6 +142,7 @@ start_test_runner() {
     TEST_RUNNER_PID=$!
     disown
     print_status "✅ Continuous Test Runner started (PID: $TEST_RUNNER_PID)"
+    update_service "test_runner" "$TEST_RUNNER_PID" "null" "running"
 }
 
 # Start all services

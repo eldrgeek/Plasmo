@@ -205,6 +205,79 @@ async def execute_chrome_command(ws_url: str, command: str, params: Dict = None)
         return {"success": False, "error": str(e)}
 ```
 
+## Web Rendering Standards v2.0
+
+### FastHTML for Python Web Pages
+**MANDATORY**: All Python web pages and interfaces must use FastHTML for rendering.
+
+#### FastHTML Requirements
+```python
+# Required import pattern
+from fasthtml.common import *
+
+# Standard FastHTML app initialization
+app, rt = fast_app(
+    live=True,  # Enable live reload for development
+    hdrs=[
+        # Include modern CSS framework
+        Link(rel="stylesheet", href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"),
+        # Custom styles
+        Style("""
+            :root {
+                --primary-color: #2563eb;
+                --secondary-color: #64748b;
+                --success-color: #059669;
+                --warning-color: #d97706;
+                --error-color: #dc2626;
+            }
+        """)
+    ]
+)
+
+# Route pattern with proper typing
+@rt("/")
+def get():
+    return Title("App Name"), Main(
+        H1("Welcome"),
+        P("FastHTML-powered interface"),
+        cls="container"
+    )
+
+# Component pattern for reusable elements
+def StatusCard(title: str, status: str, color: str = "primary"):
+    return Div(
+        H3(title),
+        P(status, cls=f"text-{color}"),
+        cls="card"
+    )
+```
+
+#### FastHTML Best Practices
+- **Use semantic HTML**: Leverage FastHTML's HTML element functions
+- **Component-based design**: Create reusable components for common UI patterns
+- **CSS integration**: Use modern CSS frameworks (Pico CSS recommended)
+- **Live reload**: Enable live reload for development efficiency
+- **Type safety**: Use proper type hints for route functions and components
+
+#### Migration from Traditional Templates
+```python
+# ❌ OLD: Traditional Flask/Django templates
+@app.route('/')
+def index():
+    return render_template('index.html', data=data)
+
+# ✅ NEW: FastHTML components
+@rt("/")
+def get():
+    return Title("Dashboard"), Main(
+        Header(H1("System Dashboard")),
+        Section(
+            *[StatusCard(name, status) for name, status in services.items()]
+        ),
+        cls="container"
+    )
+```
+
 ## Tool Categories and Organization v2.0
 
 ### Enhanced Tool Structure
@@ -219,6 +292,12 @@ async def execute_chrome_command(ws_url: str, command: str, params: Dict = None)
 - `analyze_code`: Comprehensive code metrics and complexity analysis
 - `get_project_structure`: Intelligent project tree with ignore patterns
 - `run_git_command`: Secure git operations with command filtering
+
+# Web Development (FastHTML)
+- `create_fasthtml_app`: Generate FastHTML application structure
+- `render_dashboard`: Create dashboard interfaces with FastHTML
+- `generate_components`: Build reusable FastHTML components
+- `integrate_css_framework`: Add modern CSS frameworks to FastHTML apps
 
 # Chrome Extension Debugging (v2.0)
 - `connect_to_chrome`: Enhanced connection management with validation
@@ -310,6 +389,7 @@ When using the MCP server in any conversation, the AI assistant must be aware of
 4. **Security constraints**: Path validation and input sanitization
 5. **Chrome debugging capabilities**: Real-time monitoring and robust execution
 6. **Resource management**: Connection tracking and cleanup procedures
+7. **Web rendering standard**: FastHTML for all Python web interfaces
 
 ### Context Injection Pattern
 ```typescript
@@ -323,6 +403,7 @@ interface MCPServerContext {
   resourceManagement: boolean;
   errorHandling: "comprehensive";
   unicode_support: boolean;
+  webRenderingStandard: "FastHTML";
 }
 ```
 

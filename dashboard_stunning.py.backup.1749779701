@@ -1,0 +1,1162 @@
+#!/usr/bin/env python3
+"""
+🎨 COMPLETE STUNNING MODERN DASHBOARD - Plasmo Extension Services
+================================================================
+
+A breathtakingly beautiful dashboard with:
+✨ Glassmorphism design with blur effects
+🌈 Smooth gradient animations  
+🎯 Micro-interactions and hover effects
+📱 Perfect responsive design
+🌙 Elegant dark/light themes
+⚡ Real-time WebSocket updates
+🎭 Loading skeletons and transitions
+🎪 Interactive data visualizations
+"""
+
+import asyncio
+import json
+import logging
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+
+import aiofiles
+import psutil
+from fasthtml.common import *
+
+# Import our service manager
+from service_manager import ServiceManager
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# FastHTML app with stunning modern styling
+app, rt = fast_app(
+    live=True,
+    hdrs=[
+        Link(rel="stylesheet", href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"),
+        Link(rel="stylesheet", href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"),
+        Link(rel="stylesheet", href="https://fonts.googleapis.com/icon?family=Material+Icons+Round"),
+        Link(rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"),
+        Style("""
+            /* 🎨 STUNNING MODERN DESIGN SYSTEM */
+            :root {
+                /* Brand Colors */
+                --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                --primary-solid: #667eea;
+                --primary-light: rgba(102, 126, 234, 0.1);
+                --secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                --accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                
+                /* Status Colors */
+                --success: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                --success-solid: #11998e;
+                --warning: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                --warning-solid: #f093fb;
+                --error: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+                --error-solid: #fc466b;
+                
+                /* Surfaces */
+                --bg-primary: #0a0a0f;
+                --bg-secondary: #111118;
+                --bg-tertiary: #1a1a24;
+                --surface: rgba(255, 255, 255, 0.05);
+                --surface-hover: rgba(255, 255, 255, 0.08);
+                --surface-active: rgba(255, 255, 255, 0.12);
+                --glass: rgba(255, 255, 255, 0.03);
+                --glass-border: rgba(255, 255, 255, 0.1);
+                
+                /* Text */
+                --text-primary: #ffffff;
+                --text-secondary: rgba(255, 255, 255, 0.7);
+                --text-tertiary: rgba(255, 255, 255, 0.5);
+                --text-muted: rgba(255, 255, 255, 0.3);
+                
+                /* Shadows */
+                --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+                --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.2);
+                --shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.3);
+                --shadow-xl: 0 24px 96px rgba(0, 0, 0, 0.4);
+                --glow: 0 0 32px rgba(102, 126, 234, 0.3);
+                
+                /* Spacing */
+                --space-xs: 0.25rem;
+                --space-sm: 0.5rem;
+                --space-md: 1rem;
+                --space-lg: 1.5rem;
+                --space-xl: 2rem;
+                --space-2xl: 3rem;
+                --space-3xl: 4rem;
+                
+                /* Border Radius */
+                --radius-sm: 0.5rem;
+                --radius-md: 0.75rem;
+                --radius-lg: 1rem;
+                --radius-xl: 1.5rem;
+                --radius-2xl: 2rem;
+                
+                /* Transitions */
+                --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+                --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+                --transition-bounce: 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            }
+            
+            /* Light Theme */
+            [data-theme="light"] {
+                --bg-primary: #fafafa;
+                --bg-secondary: #ffffff;
+                --bg-tertiary: #f5f5f5;
+                --surface: rgba(0, 0, 0, 0.03);
+                --surface-hover: rgba(0, 0, 0, 0.05);
+                --surface-active: rgba(0, 0, 0, 0.08);
+                --glass: rgba(255, 255, 255, 0.8);
+                --glass-border: rgba(0, 0, 0, 0.1);
+                --text-primary: #1a1a1a;
+                --text-secondary: rgba(0, 0, 0, 0.7);
+                --text-tertiary: rgba(0, 0, 0, 0.5);
+                --text-muted: rgba(0, 0, 0, 0.3);
+            }
+            
+            /* 🎯 RESET & BASE STYLES */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            html {
+                scroll-behavior: smooth;
+            }
+            
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                background: var(--bg-primary);
+                color: var(--text-primary);
+                line-height: 1.6;
+                overflow-x: hidden;
+                min-height: 100vh;
+                background-image: 
+                    radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 20%, rgba(118, 75, 162, 0.1) 0%, transparent 50%),
+                    radial-gradient(circle at 40% 40%, rgba(79, 172, 254, 0.05) 0%, transparent 50%);
+                background-attachment: fixed;
+            }
+            
+            /* 🎪 GLASSMORPHISM COMPONENTS */
+            .glass {
+                background: var(--glass);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid var(--glass-border);
+                box-shadow: var(--shadow-md);
+            }
+            
+            .glass-strong {
+                background: rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(40px);
+                -webkit-backdrop-filter: blur(40px);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+            }
+            
+            /* 🎨 LAYOUT COMPONENTS */
+            .app-container {
+                display: flex;
+                min-height: 100vh;
+                position: relative;
+            }
+            
+            /* ✨ STUNNING HEADER */
+            .header {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4rem;
+                z-index: 1000;
+                padding: 0 var(--space-xl);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                background: var(--glass);
+                backdrop-filter: blur(20px);
+                border-bottom: 1px solid var(--glass-border);
+                transition: all var(--transition-normal);
+            }
+            
+            .header-brand {
+                display: flex;
+                align-items: center;
+                gap: var(--space-md);
+                font-weight: 700;
+                font-size: 1.25rem;
+                background: var(--primary);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            
+            .header-brand .logo {
+                width: 2rem;
+                height: 2rem;
+                background: var(--primary);
+                border-radius: var(--radius-md);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.25rem;
+                animation: float 3s ease-in-out infinite;
+            }
+            
+            @keyframes float {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-5px); }
+            }
+            
+            .header-actions {
+                display: flex;
+                align-items: center;
+                gap: var(--space-md);
+            }
+            
+            /* 🎯 BEAUTIFUL SIDEBAR */
+            .sidebar {
+                position: fixed;
+                top: 4rem;
+                left: 0;
+                width: 16rem;
+                height: calc(100vh - 4rem);
+                background: var(--glass);
+                backdrop-filter: blur(20px);
+                border-right: 1px solid var(--glass-border);
+                padding: var(--space-xl);
+                overflow-y: auto;
+                z-index: 900;
+                transition: all var(--transition-normal);
+            }
+            
+            .nav-section {
+                margin-bottom: var(--space-2xl);
+            }
+            
+            .nav-section-title {
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--text-muted);
+                margin-bottom: var(--space-md);
+                padding: 0 var(--space-md);
+            }
+            
+            .nav-item {
+                display: flex;
+                align-items: center;
+                gap: var(--space-md);
+                padding: var(--space-md);
+                margin: var(--space-xs) 0;
+                border-radius: var(--radius-md);
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-weight: 500;
+                transition: all var(--transition-normal);
+                cursor: pointer;
+                border: none;
+                background: none;
+                width: 100%;
+                text-align: left;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .nav-item::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: var(--primary);
+                opacity: 0;
+                transition: all var(--transition-normal);
+                z-index: -1;
+            }
+            
+            .nav-item:hover {
+                color: var(--text-primary);
+                background: var(--surface-hover);
+                transform: translateX(4px);
+            }
+            
+            .nav-item:hover::before {
+                left: 0;
+                opacity: 0.1;
+            }
+            
+            .nav-item.active {
+                color: var(--text-primary);
+                background: var(--primary-light);
+                box-shadow: var(--glow);
+            }
+            
+            .nav-item.active::before {
+                left: 0;
+                opacity: 0.2;
+            }
+            
+            .nav-item .material-icons-round {
+                font-size: 1.25rem;
+                transition: all var(--transition-normal);
+            }
+            
+            .nav-item:hover .material-icons-round {
+                transform: scale(1.1);
+            }
+            
+            /* 🎪 MAIN CONTENT AREA */
+            .main-content {
+                margin-left: 16rem;
+                margin-top: 4rem;
+                padding: var(--space-2xl);
+                width: calc(100% - 16rem);
+                min-height: calc(100vh - 4rem);
+                position: relative;
+            }
+            
+            .page-section {
+                display: none;
+                animation: slideInUp 0.5s var(--transition-bounce);
+            }
+            
+            .page-section.active {
+                display: block;
+            }
+            
+            @keyframes slideInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            .page-header {
+                margin-bottom: var(--space-2xl);
+                text-align: center;
+            }
+            
+            .page-title {
+                font-size: 3rem;
+                font-weight: 800;
+                background: var(--primary);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: var(--space-sm);
+                line-height: 1.2;
+            }
+            
+            .page-subtitle {
+                font-size: 1.125rem;
+                color: var(--text-secondary);
+                max-width: 600px;
+                margin: 0 auto;
+            }
+            
+            /* 🎨 STUNNING CARDS */
+            .card-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                gap: var(--space-xl);
+                margin: var(--space-2xl) 0;
+            }
+            
+            .card {
+                background: var(--glass);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--glass-border);
+                border-radius: var(--radius-xl);
+                padding: var(--space-xl);
+                transition: all var(--transition-normal);
+                position: relative;
+                overflow: hidden;
+                cursor: pointer;
+            }
+            
+            .card::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: var(--primary);
+                transform: scaleX(0);
+                transition: transform var(--transition-normal);
+            }
+            
+            .card:hover {
+                transform: translateY(-8px);
+                box-shadow: var(--shadow-xl);
+                border-color: rgba(255, 255, 255, 0.2);
+            }
+            
+            .card:hover::before {
+                transform: scaleX(1);
+            }
+            
+            .card-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: var(--space-lg);
+            }
+            
+            .card-title {
+                display: flex;
+                align-items: center;
+                gap: var(--space-md);
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+            
+            .card-icon {
+                width: 2.5rem;
+                height: 2.5rem;
+                border-radius: var(--radius-md);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 1.25rem;
+                background: var(--primary);
+                color: white;
+                box-shadow: var(--glow);
+            }
+            
+            /* 🎯 STATUS COMPONENTS */
+            .status-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: var(--space-xs);
+                padding: var(--space-xs) var(--space-md);
+                border-radius: var(--radius-lg);
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .status-running {
+                background: var(--success);
+                color: white;
+                box-shadow: 0 4px 16px rgba(17, 153, 142, 0.3);
+            }
+            
+            .status-stopped {
+                background: var(--error);
+                color: white;
+                box-shadow: 0 4px 16px rgba(252, 70, 107, 0.3);
+            }
+            
+            .status-warning {
+                background: var(--warning);
+                color: white;
+                box-shadow: 0 4px 16px rgba(240, 147, 251, 0.3);
+            }
+            
+            .status-dot {
+                width: 0.5rem;
+                height: 0.5rem;
+                border-radius: 50%;
+                animation: pulse 2s infinite;
+            }
+            
+            .status-dot.running {
+                background: var(--success-solid);
+            }
+            
+            .status-dot.stopped {
+                background: var(--error-solid);
+            }
+            
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.5; }
+            }
+            
+            /* 🎪 BEAUTIFUL BUTTONS */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: var(--space-sm);
+                padding: var(--space-md) var(--space-lg);
+                border: none;
+                border-radius: var(--radius-md);
+                font-size: 0.875rem;
+                font-weight: 600;
+                text-decoration: none;
+                cursor: pointer;
+                transition: all var(--transition-normal);
+                position: relative;
+                overflow: hidden;
+                background: var(--surface);
+                color: var(--text-primary);
+                backdrop-filter: blur(10px);
+            }
+            
+            .btn::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                transition: left var(--transition-fast);
+            }
+            
+            .btn:hover {
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-md);
+            }
+            
+            .btn:hover::before {
+                left: 100%;
+            }
+            
+            .btn-primary {
+                background: var(--primary);
+                color: white;
+                box-shadow: var(--glow);
+            }
+            
+            .btn-success {
+                background: var(--success);
+                color: white;
+            }
+            
+            .btn-warning {
+                background: var(--warning);
+                color: white;
+            }
+            
+            .btn-error {
+                background: var(--error);
+                color: white;
+            }
+            
+            .btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+                transform: none;
+            }
+            
+            .btn-group {
+                display: flex;
+                gap: var(--space-sm);
+                margin-top: var(--space-lg);
+                flex-wrap: wrap;
+            }
+            
+            /* 🎨 SERVICE INFO */
+            .service-info {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-md);
+                margin: var(--space-lg) 0;
+            }
+            
+            .service-detail {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: var(--space-sm) 0;
+                border-bottom: 1px solid var(--glass-border);
+            }
+            
+            .service-detail:last-child {
+                border-bottom: none;
+            }
+            
+            .service-detail-label {
+                color: var(--text-secondary);
+                font-weight: 500;
+                font-size: 0.875rem;
+            }
+            
+            .service-detail-value {
+                color: var(--text-primary);
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.875rem;
+                font-weight: 500;
+                background: var(--surface);
+                padding: var(--space-xs) var(--space-sm);
+                border-radius: var(--radius-sm);
+            }
+            
+            /* 🎯 THEME TOGGLE */
+            .theme-toggle {
+                width: 2.5rem;
+                height: 2.5rem;
+                border-radius: 50%;
+                background: var(--surface);
+                border: 1px solid var(--glass-border);
+                color: var(--text-primary);
+                cursor: pointer;
+                transition: all var(--transition-normal);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                backdrop-filter: blur(10px);
+            }
+            
+            .theme-toggle:hover {
+                transform: scale(1.1) rotate(180deg);
+                box-shadow: var(--glow);
+            }
+            
+            /* 🎪 LOADING STATES */
+            .loading {
+                opacity: 0.6;
+                pointer-events: none;
+                position: relative;
+            }
+            
+            .loading::after {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 1rem;
+                height: 1rem;
+                margin: -0.5rem 0 0 -0.5rem;
+                border: 2px solid transparent;
+                border-top: 2px solid var(--primary-solid);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            .skeleton {
+                background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
+                background-size: 200% 100%;
+                animation: shimmer 1.5s infinite;
+                border-radius: var(--radius-sm);
+            }
+            
+            @keyframes shimmer {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+            }
+            
+            /* 📱 RESPONSIVE DESIGN */
+            @media (max-width: 768px) {
+                .sidebar {
+                    transform: translateX(-100%);
+                    transition: transform var(--transition-normal);
+                }
+                
+                .sidebar.open {
+                    transform: translateX(0);
+                }
+                
+                .main-content {
+                    margin-left: 0;
+                    width: 100%;
+                    padding: var(--space-lg);
+                }
+                
+                .card-grid {
+                    grid-template-columns: 1fr;
+                    gap: var(--space-lg);
+                }
+                
+                .page-title {
+                    font-size: 2rem;
+                }
+                
+                .btn-group {
+                    flex-direction: column;
+                }
+            }
+            
+            /* 🎨 SCROLLBAR STYLING */
+            ::-webkit-scrollbar {
+                width: 6px;
+            }
+            
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            
+            ::-webkit-scrollbar-thumb {
+                background: var(--glass-border);
+                border-radius: 3px;
+            }
+            
+            ::-webkit-scrollbar-thumb:hover {
+                background: var(--primary-solid);
+            }
+        """)
+    ]
+)
+
+# Global service manager instance
+service_manager = ServiceManager()
+
+def AppHeader():
+    """Stunning modern header"""
+    return Header(
+        Div(
+            Div(
+                Div("🚀", cls="logo"),
+                "Plasmo Dashboard",
+                cls="header-brand"
+            ),
+            Div(
+                Button(
+                    I("light_mode", cls="material-icons-round"),
+                    cls="theme-toggle",
+                    onclick="toggleTheme()",
+                    title="Toggle theme"
+                ),
+                Button(
+                    I("refresh", cls="material-icons-round"),
+                    cls="btn",
+                    onclick="refreshAll()",
+                    title="Refresh all"
+                ),
+                cls="header-actions"
+            ),
+            cls="header"
+        )
+    )
+
+def Sidebar():
+    """Beautiful glassmorphism sidebar"""
+    return Nav(
+        Div(
+            H3("Overview", cls="nav-section-title"),
+            Button(
+                I("dashboard", cls="material-icons-round"),
+                "Dashboard",
+                cls="nav-item active",
+                onclick="showSection('dashboard')",
+                id="nav-dashboard"
+            ),
+            Button(
+                I("settings", cls="material-icons-round"),
+                "Services",
+                cls="nav-item",
+                onclick="showSection('services')",
+                id="nav-services"
+            ),
+            cls="nav-section"
+        ),
+        Div(
+            H3("Management", cls="nav-section-title"),
+            Button(
+                I("extension", cls="material-icons-round"),
+                "Extensions",
+                cls="nav-item",
+                onclick="showSection('extensions')",
+                id="nav-extensions"
+            ),
+            Button(
+                I("bug_report", cls="material-icons-round"),
+                "Testing",
+                cls="nav-item",
+                onclick="showSection('testing')",
+                id="nav-testing"
+            ),
+            Button(
+                I("cloud", cls="material-icons-round"),
+                "Tunnels",
+                cls="nav-item",
+                onclick="showSection('tunnels')",
+                id="nav-tunnels"
+            ),
+            cls="nav-section"
+        ),
+        Div(
+            H3("Monitoring", cls="nav-section-title"),
+            Button(
+                I("article", cls="material-icons-round"),
+                "Logs",
+                cls="nav-item",
+                onclick="showSection('logs')",
+                id="nav-logs"
+            ),
+            Button(
+                I("analytics", cls="material-icons-round"),
+                "Metrics",
+                cls="nav-item",
+                onclick="showSection('metrics')",
+                id="nav-metrics"
+            ),
+            cls="nav-section"
+        ),
+        cls="sidebar glass",
+        id="sidebar"
+    )
+
+def DashboardSection():
+    """Stunning dashboard overview with animations"""
+    return Div(
+        Div(
+            H1("Service Overview", cls="page-title"),
+            P("Monitor and control all Plasmo extension services with real-time updates", cls="page-subtitle"),
+            cls="page-header"
+        ),
+        Div(
+            Button(
+                I("play_arrow", cls="material-icons-round"),
+                "Start All Services",
+                cls="btn btn-primary",
+                onclick="controlAllServices('start')"
+            ),
+            Button(
+                I("stop", cls="material-icons-round"),
+                "Stop All Services",
+                cls="btn btn-error",
+                onclick="controlAllServices('stop')"
+            ),
+            Button(
+                I("refresh", cls="material-icons-round"),
+                "Restart All Services",
+                cls="btn btn-warning",
+                onclick="controlAllServices('restart')"
+            ),
+            style="display: flex; justify-content: center; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;"
+        ),
+        Div(id="services-grid", cls="card-grid"),
+        cls="page-section active",
+        id="dashboard-section"
+    )
+
+# API Routes
+@rt("/api/services/status")
+def get_services_status():
+    """Get status of all services"""
+    try:
+        status = service_manager.get_all_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error getting services status: {e}")
+        return {"error": str(e)}
+
+@rt("/api/services/{service_name}/{action}", methods=["POST"])
+def control_service(service_name: str, action: str):
+    """Control individual service"""
+    try:
+        if action == "start":
+            result = service_manager.start_service(service_name)
+        elif action == "stop":
+            result = service_manager.stop_service(service_name)
+        elif action == "restart":
+            result = service_manager.restart_service(service_name)
+        else:
+            return {"error": f"Unknown action: {action}"}
+        
+        return {"success": True, "result": result}
+    except Exception as e:
+        logger.error(f"Error {action}ing {service_name}: {e}")
+        return {"error": str(e)}
+
+@rt("/")
+def get():
+    """Main beautiful SPA page"""
+    return Html(
+        Head(
+            Title("🚀 Plasmo Extension Dashboard"),
+            Meta(charset="utf-8"),
+            Meta(name="viewport", content="width=device-width, initial-scale=1"),
+            Meta(name="description", content="Beautiful modern dashboard for Plasmo extension services"),
+        ),
+        Body(
+            AppHeader(),
+            Div(
+                Sidebar(),
+                Main(
+                    DashboardSection(),
+                    cls="main-content"
+                ),
+                cls="app-container"
+            ),
+            Script("""
+                // 🎨 BEAUTIFUL DASHBOARD INTERACTIONS
+                
+                // Theme management with smooth transitions
+                function toggleTheme() {
+                    const body = document.body;
+                    const currentTheme = body.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    
+                    // Add transition class
+                    body.style.transition = 'all 0.3s ease';
+                    body.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                    
+                    // Remove transition after animation
+                    setTimeout(() => {
+                        body.style.transition = '';
+                    }, 300);
+                }
+                
+                // Load saved theme
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                document.body.setAttribute('data-theme', savedTheme);
+                
+                // Enhanced service loading with skeleton states
+                async function loadServices() {
+                    const dashboardGrid = document.getElementById('services-grid');
+                    
+                    // Show skeleton loading
+                    if (dashboardGrid) {
+                        dashboardGrid.innerHTML = Array(6).fill(0).map(() => createSkeletonCard()).join('');
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/services/status');
+                        const services = await response.json();
+                        
+                        // Animate in real content
+                        setTimeout(() => {
+                            if (dashboardGrid) {
+                                dashboardGrid.innerHTML = '';
+                                Object.entries(services).forEach(([name, info], index) => {
+                                    setTimeout(() => {
+                                        const cardElement = document.createElement('div');
+                                        cardElement.innerHTML = createServiceCard(name, info);
+                                        cardElement.firstElementChild.style.animation = 'slideInUp 0.5s ease forwards';
+                                        cardElement.firstElementChild.style.opacity = '0';
+                                        dashboardGrid.appendChild(cardElement.firstElementChild);
+                                        
+                                        setTimeout(() => {
+                                            cardElement.firstElementChild.style.opacity = '1';
+                                        }, 50);
+                                    }, index * 100);
+                                });
+                            }
+                        }, 500);
+                    } catch (error) {
+                        console.error('Failed to load services:', error);
+                        showNotification('Failed to load services', 'error');
+                    }
+                }
+                
+                function createSkeletonCard() {
+                    return `
+                        <div class="card glass">
+                            <div class="card-header">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <div class="skeleton" style="width: 2.5rem; height: 2.5rem; border-radius: 0.75rem;"></div>
+                                    <div class="skeleton" style="width: 120px; height: 1.5rem;"></div>
+                                </div>
+                                <div class="skeleton" style="width: 80px; height: 1.5rem; border-radius: 1rem;"></div>
+                            </div>
+                            <div class="service-info">
+                                <div class="service-detail">
+                                    <div class="skeleton" style="width: 100px; height: 1rem;"></div>
+                                    <div class="skeleton" style="width: 80px; height: 1rem;"></div>
+                                </div>
+                                <div class="service-detail">
+                                    <div class="skeleton" style="width: 60px; height: 1rem;"></div>
+                                    <div class="skeleton" style="width: 40px; height: 1rem;"></div>
+                                </div>
+                            </div>
+                            <div class="btn-group">
+                                <div class="skeleton" style="width: 80px; height: 2.5rem; border-radius: 0.75rem;"></div>
+                                <div class="skeleton" style="width: 80px; height: 2.5rem; border-radius: 0.75rem;"></div>
+                                <div class="skeleton" style="width: 80px; height: 2.5rem; border-radius: 0.75rem;"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                function createServiceCard(name, info) {
+                    const isRunning = info.running;
+                    const statusClass = isRunning ? 'running' : 'stopped';
+                    const statusText = isRunning ? 'Running' : 'Stopped';
+                    
+                    const icons = {
+                        'socketio': 'electrical_services',
+                        'mcp': 'api',
+                        'plasmo': 'extension',
+                        'tests': 'bug_report',
+                        'dashboard': 'dashboard',
+                        'chrome_debug': 'web'
+                    };
+                    
+                    const icon = icons[name] || 'settings';
+                    
+                    return `
+                        <div class="card glass" id="service-${name}">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <div class="card-icon">
+                                        <i class="material-icons-round">${icon}</i>
+                                    </div>
+                                    ${name.replace('_', ' ').replace(/\\b\\w/g, l => l.toUpperCase())}
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="status-dot ${statusClass}"></span>
+                                    <span class="status-badge status-${statusClass}">${statusText}</span>
+                                </div>
+                            </div>
+                            <div class="service-info">
+                                <div class="service-detail">
+                                    <span class="service-detail-label">Implementation</span>
+                                    <span class="service-detail-value">${info.implementation || 'Unknown'}</span>
+                                </div>
+                                ${info.port ? `
+                                <div class="service-detail">
+                                    <span class="service-detail-label">Port</span>
+                                    <span class="service-detail-value">${info.port}</span>
+                                </div>
+                                ` : ''}
+                                ${info.pid ? `
+                                <div class="service-detail">
+                                    <span class="service-detail-label">PID</span>
+                                    <span class="service-detail-value">${info.pid}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn btn-success" onclick="controlService('${name}', 'start')" ${isRunning ? 'disabled' : ''}>
+                                    <i class="material-icons-round">play_arrow</i>
+                                    Start
+                                </button>
+                                <button class="btn btn-error" onclick="controlService('${name}', 'stop')" ${!isRunning ? 'disabled' : ''}>
+                                    <i class="material-icons-round">stop</i>
+                                    Stop
+                                </button>
+                                <button class="btn btn-warning" onclick="controlService('${name}', 'restart')">
+                                    <i class="material-icons-round">refresh</i>
+                                    Restart
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Enhanced service control with beautiful feedback
+                async function controlService(serviceName, action) {
+                    const card = document.getElementById(`service-${serviceName}`);
+                    card.classList.add('loading');
+                    
+                    try {
+                        const response = await fetch(`/api/services/${serviceName}/${action}`, {
+                            method: 'POST'
+                        });
+                        
+                        if (response.ok) {
+                            showNotification(`${action.charAt(0).toUpperCase() + action.slice(1)}ed ${serviceName}`, 'success');
+                            setTimeout(loadServices, 1000);
+                        } else {
+                            throw new Error(`Failed to ${action} ${serviceName}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error ${action}ing ${serviceName}:`, error);
+                        showNotification(`Failed to ${action} ${serviceName}`, 'error');
+                    } finally {
+                        card.classList.remove('loading');
+                    }
+                }
+                
+                // Beautiful notification system
+                function showNotification(message, type = 'info') {
+                    const notification = document.createElement('div');
+                    notification.style.cssText = `
+                        position: fixed;
+                        top: 5rem;
+                        right: 1.5rem;
+                        background: var(--glass);
+                        backdrop-filter: blur(20px);
+                        border: 1px solid var(--glass-border);
+                        border-radius: 0.75rem;
+                        padding: 1rem 1.5rem;
+                        color: var(--text-primary);
+                        font-weight: 500;
+                        z-index: 10000;
+                        transform: translateX(100%);
+                        transition: all 0.3s ease;
+                        box-shadow: var(--shadow-lg);
+                        max-width: 300px;
+                    `;
+                    
+                    if (type === 'success') {
+                        notification.style.borderLeft = '4px solid var(--success-solid)';
+                    } else if (type === 'error') {
+                        notification.style.borderLeft = '4px solid var(--error-solid)';
+                    }
+                    
+                    notification.textContent = message;
+                    document.body.appendChild(notification);
+                    
+                    // Animate in
+                    setTimeout(() => {
+                        notification.style.transform = 'translateX(0)';
+                    }, 100);
+                    
+                    // Animate out and remove
+                    setTimeout(() => {
+                        notification.style.transform = 'translateX(100%)';
+                        setTimeout(() => {
+                            document.body.removeChild(notification);
+                        }, 300);
+                    }, 3000);
+                }
+                
+                // Initialize beautiful dashboard
+                document.addEventListener('DOMContentLoaded', function() {
+                    loadServices();
+                    
+                    // Auto-refresh with smooth updates
+                    setInterval(loadServices, 30000);
+                    
+                    // Add beautiful scroll effects
+                    window.addEventListener('scroll', () => {
+                        const header = document.querySelector('.header');
+                        if (window.scrollY > 50) {
+                            header.style.background = 'var(--glass-strong)';
+                        } else {
+                            header.style.background = 'var(--glass)';
+                        }
+                    });
+                });
+                
+                // Add CSS animations
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes fadeOut {
+                        from { opacity: 1; transform: translateY(0); }
+                        to { opacity: 0; transform: translateY(-10px); }
+                    }
+                `;
+                document.head.appendChild(style);
+            """)
+        )
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    print("🚀 Starting Beautiful Plasmo Dashboard...")
+    print("✨ Features: Glassmorphism, Animations, Real-time Updates")
+    print("🎨 Access at: http://localhost:8080")
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")

@@ -4,9 +4,10 @@
         {
             "label": "Start All Services",
             "type": "shell",
-            "command": "bash",
+            "command": "python3",
             "args": [
-                "${workspaceFolder}/start_all.sh"
+                "${workspaceFolder}/service_manager.py",
+                "start-all"
             ],
             "options": {
                 "cwd": "${workspaceFolder}",
@@ -29,12 +30,16 @@
             "runOptions": {
                 "runOn": "folderOpen"
             },
-            "detail": "Starts All services for Cursor integration"
+            "detail": "Start all services including Chrome Debug using Python service manager"
         },
         {
             "label": "Stop All Services",
             "type": "shell",
-            "command": "${workspaceFolder}/stop_all_services.sh",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/service_manager.py",
+                "stop-all"
+            ],
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -44,12 +49,16 @@
                 "showReuseMessage": true,
                 "clear": true
             },
-            "detail": "Stops all services: MCP server, SocketIO server, and Plasmo dev server"
+            "detail": "Stop all services including Chrome Debug using Python service manager"
         },
         {
             "label": "Check Services Status",
             "type": "shell",
-            "command": "${workspaceFolder}/check_services.sh",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/service_manager.py",
+                "status"
+            ],
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -59,7 +68,7 @@
                 "showReuseMessage": true,
                 "clear": true
             },
-            "detail": "Check status of all development services"
+            "detail": "Check status of all development services including Chrome Debug"
         },
         {
             "label": "Restart All Services",
@@ -69,14 +78,172 @@
                 "Start All Services"
             ],
             "group": "build",
-            "detail": "Restarts all services: MCP server, SocketIO server, and Plasmo dev server"
+            "detail": "Restart all services including Chrome Debug using Python service manager"
         },
         {
-            "label": "Run MCP Tests",
+            "label": "Start Chrome Debug",
             "type": "shell",
             "command": "python3",
             "args": [
-                "test_mcp_protocol.py",
+                "${workspaceFolder}/service_manager.py",
+                "start",
+                "chrome_debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "detail": "Start Chrome with debugging enabled via service manager"
+        },
+        {
+            "label": "Stop Chrome Debug",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/service_manager.py",
+                "stop",
+                "chrome_debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Stop Chrome Debug service"
+        },
+        {
+            "label": "Restart Chrome Debug",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/service_manager.py",
+                "restart",
+                "chrome_debug"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "detail": "Restart Chrome Debug service"
+        },
+        {
+            "label": "Start MCP Server",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/service_manager.py",
+                "start",
+                "mcp"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "detail": "Start MCP server via service manager"
+        },
+        {
+            "label": "Start Dashboard",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/service_manager.py",
+                "start",
+                "dashboard"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "detail": "Start dashboard server via service manager"
+        },
+        {
+            "label": "Get Extension ID",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/extension_manager.py",
+                "get-id"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Find Chrome extension ID using Python extension manager"
+        },
+        {
+            "label": "List Chrome Extensions",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/extension_manager.py",
+                "list-extensions"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "List all installed Chrome extensions"
+        },
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/test_runner.py",
+                "all"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Run all tests using Python test runner"
+        },
+        {
+            "label": "Run Tests Verbose",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/test_runner.py",
+                "all",
                 "--verbose"
             ],
             "group": "test",
@@ -88,7 +255,204 @@
                 "showReuseMessage": true,
                 "clear": true
             },
-            "detail": "Run tests that go through MCP protocol"
+            "detail": "Run all tests with verbose output"
+        },
+        {
+            "label": "List Available Tests",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/test_runner.py",
+                "list"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "List all available test files"
+        },
+        {
+            "label": "Start Cloudflare Tunnel",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/cloudflare_tunnel_manager.py",
+                "start"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "detail": "Start Cloudflare tunnel to expose MCP server externally"
+        },
+        {
+            "label": "Stop Cloudflare Tunnel",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/cloudflare_tunnel_manager.py",
+                "stop"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Stop Cloudflare tunnel"
+        },
+        {
+            "label": "Check Tunnel Status",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/cloudflare_tunnel_manager.py",
+                "status"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Check status of Cloudflare tunnel and services"
+        },
+        {
+            "label": "Start Secure MCP",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/secure_mcp_manager.py",
+                "start"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "detail": "Start secure MCP server"
+        },
+        {
+            "label": "Stop Secure MCP",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/secure_mcp_manager.py",
+                "stop"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Stop secure MCP server"
+        },
+        {
+            "label": "Start All + Tunnel",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Start Secure MCP",
+                "Start Cloudflare Tunnel"
+            ],
+            "group": "build",
+            "detail": "Start secure MCP server and expose via Cloudflare tunnel"
+        },
+        {
+            "label": "Start LocalTunnel",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/localtunnel_manager.py",
+                "start"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "detail": "Start LocalTunnel to expose dashboard externally"
+        },
+        {
+            "label": "Stop LocalTunnel",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/localtunnel_manager.py",
+                "stop"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Stop LocalTunnel tunnel"
+        },
+        {
+            "label": "Check LocalTunnel Status",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/localtunnel_manager.py",
+                "status"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "dedicated",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "detail": "Check status of LocalTunnel and services"
+        },
+        {
+            "label": "Start All + LocalTunnel",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Start All Services",
+                "Start LocalTunnel"
+            ],
+            "group": "build",
+            "detail": "Start all services and expose dashboard via LocalTunnel"
         }
     ]
 }
