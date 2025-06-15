@@ -21,6 +21,7 @@ Firebase Discord-style chat application documentation.
 - `discord_chat_app_plan.md` - Complete development plan for Discord-style chat app
 - `DATABASE_API.md` - Firebase database API documentation and service integration
 - `BOLT_INTEGRATION_GUIDE.md` - Integration guide for AI assistants like Bolt.new
+- `roundtable-doc-enhancements.md` - Backend testing, frontend implementation, and Bolt.new workflow guide
 
 ### 📁 `/docs/plasmo/`
 Plasmo Chrome extension specific documentation.
@@ -94,6 +95,7 @@ General guides and tutorials.
 - **Firebase Chat**: See `/docs/roundtable/` directory
 - **Database API**: `/docs/roundtable/DATABASE_API.md`
 - **AI Integration**: `/docs/roundtable/BOLT_INTEGRATION_GUIDE.md`
+- **Development Workflow**: `/docs/roundtable/roundtable-doc-enhancements.md`
 
 ### 🌐 Networking & Tunneling
 - **WebRTC**: `/docs/guides/WEBRTC_CONNECTION_GUIDE.md`
