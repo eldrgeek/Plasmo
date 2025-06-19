@@ -184,7 +184,32 @@ import requests
 # Socket.IO import for orchestration
 import socketio
 
+# FastMCP import
 from fastmcp import FastMCP
+
+# Claude Instance Management Integration
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+yesh_clone_dir = os.path.join(os.path.dirname(current_dir), "YeshClone")
+if os.path.exists(yesh_clone_dir):
+    sys.path.append(yesh_clone_dir)
+    try:
+        from mcp_extension_claude_instances import (
+            launch_claude_instance_tool,
+            list_claude_instances_tool,
+            send_inter_instance_message_tool,
+            coordinate_claude_instances_tool
+        )
+        CLAUDE_INSTANCES_AVAILABLE = True
+        print("✅ Claude instance management tools loaded")
+    except ImportError as e:
+        CLAUDE_INSTANCES_AVAILABLE = False
+        print(f"⚠️  Claude instance tools not available: {e}")
+else:
+    CLAUDE_INSTANCES_AVAILABLE = False
+    print("⚠️  YeshClone directory not found for Claude instance tools")
+
 
 # Configure logging
 logging.basicConfig(
@@ -4096,6 +4121,117 @@ def file_manager(
 # Add SecurityError class for security violations
 
 # ... existing code ...
+
+
+
+# ============================================================================
+# CLAUDE INSTANCE MANAGEMENT TOOLS
+# ============================================================================
+
+@mcp.tool()
+def launch_claude_instance(
+    role: str = "assistant", 
+    project_path: str = None, 
+    startup_message: str = None
+) -> Dict[str, Any]:
+    """
+    🚀 Launch a new Claude Code instance with inter-communication capabilities.
+    
+    Creates a new Claude instance in a separate terminal with its own MCP server,
+    enabling multi-agent workflows and collaboration between Claude instances.
+    
+    Args:
+        role: Role for the instance (e.g., "reviewer", "implementer", "coordinator", "tester")
+        project_path: Path to project directory (defaults to current working directory)
+        startup_message: Initial message to send to the new instance after launch
+    
+    Returns:
+        Dict with launch status, instance ID, and configuration details
+    """
+    if not CLAUDE_INSTANCES_AVAILABLE:
+        return {
+            "success": False,
+            "error": "Claude instance management tools not available. Check integration setup."
+        }
+    
+    return launch_claude_instance_tool(role, project_path, startup_message)
+
+@mcp.tool()
+def list_claude_instances() -> Dict[str, Any]:
+    """
+    📋 List all active Claude instances with their roles and status.
+    
+    Shows all currently registered Claude instances, their roles, project paths,
+    creation times, and communication endpoints.
+    
+    Returns:
+        Dict with list of instances and summary statistics
+    """
+    if not CLAUDE_INSTANCES_AVAILABLE:
+        return {
+            "success": False,
+            "error": "Claude instance management tools not available. Check integration setup."
+        }
+    
+    return list_claude_instances_tool()
+
+@mcp.tool()
+def send_inter_instance_message(
+    target_instance_id: str,
+    subject: str, 
+    message: str,
+    sender_role: str = "coordinator"
+) -> Dict[str, Any]:
+    """
+    💬 Send a message to another Claude instance for coordination.
+    
+    Enables communication between different Claude instances using the shared
+    messaging system. Messages are delivered through the file-based messaging
+    infrastructure.
+    
+    Args:
+        target_instance_id: ID of the target Claude instance (from list_claude_instances)
+        subject: Message subject line
+        message: Message content (can include JSON data, instructions, etc.)
+        sender_role: Role of the sender (defaults to "coordinator")
+    
+    Returns:
+        Dict with message delivery status and message ID
+    """
+    if not CLAUDE_INSTANCES_AVAILABLE:
+        return {
+            "success": False,
+            "error": "Claude instance management tools not available. Check integration setup."
+        }
+    
+    return send_inter_instance_message_tool(target_instance_id, subject, message, sender_role)
+
+@mcp.tool()
+def coordinate_claude_instances(
+    task: str,
+    instance_ids: List[str] = None
+) -> Dict[str, Any]:
+    """
+    🤝 Coordinate multiple Claude instances for a collaborative task.
+    
+    Sends coordination requests to multiple Claude instances simultaneously,
+    enabling complex multi-agent workflows where different instances can
+    work on different aspects of a larger task.
+    
+    Args:
+        task: Description of the task to coordinate across instances
+        instance_ids: Specific instance IDs to coordinate (if None, coordinates all instances)
+    
+    Returns:
+        Dict with coordination results for each participating instance
+    """
+    if not CLAUDE_INSTANCES_AVAILABLE:
+        return {
+            "success": False,
+            "error": "Claude instance management tools not available. Check integration setup."
+        }
+    
+    return coordinate_claude_instances_tool(task, instance_ids)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Consolidated MCP Server v2.0")

@@ -17,6 +17,30 @@ MCP_WATCH_FILES=(
     "requirements.txt"
 )
 
+# Lock file to prevent multiple instances
+LOCK_FILE="/tmp/mcp_auto_restart.lock"
+LOCK_PID_FILE="/tmp/mcp_auto_restart.pid"
+
+# Function to check if another instance is running
+is_already_running() {
+    if [ -f "$LOCK_PID_FILE" ]; then
+        local existing_pid=$(cat "$LOCK_PID_FILE" 2>/dev/null)
+        if [ ! -z "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
+            # Check if it's actually our script
+            if ps -p "$existing_pid" -o comm= | grep -q "bash"; then
+                return 0
+            fi
+        fi
+    fi
+    return 1
+}
+
+# Function to create lock
+create_lock() {
+    echo $$ > "$LOCK_PID_FILE"
+    touch "$LOCK_FILE"
+}
+
 # Function to cleanup on exit
 cleanup() {
     echo ""
@@ -30,6 +54,10 @@ cleanup() {
     fi
     
     pkill -f "mcp_server.py" 2>/dev/null
+    
+    # Remove lock files
+    rm -f "$LOCK_FILE" "$LOCK_PID_FILE" 2>/dev/null
+    
     echo "✅ MCP Server stopped"
     exit 0
 }
@@ -97,6 +125,16 @@ watch_and_restart() {
         fi
     done
 }
+
+# Check if another instance is already running
+if is_already_running; then
+    echo "✅ MCP auto-restart script is already running (PID: $(cat "$LOCK_PID_FILE"))"
+    echo "   No need to start another instance."
+    exit 0
+fi
+
+# Create lock to prevent multiple instances
+create_lock
 
 # Check prerequisites
 if ! command -v python3 &> /dev/null; then

@@ -7,11 +7,15 @@
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
-    "package": "plasmo package"
+    "package": "plasmo package",
+    "install-browser": "npx playwright install chromium",
+    "firebase-automate": "node firebase-console-automation.js",
+    "firebase-example": "node firebase-automation-example.js"
   },
   "dependencies": {
     "express": "^5.1.0",
     "plasmo": "0.90.5",
+    "playwright": "^1.40.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "socket.io": "^4.8.1",
