@@ -293,13 +293,26 @@ async def run_background_task(coro, task_name: str = "unnamed"):
 # END NEW IMPROVEMENTS
 # ============================================================================
 
-# Initialize FastMCP server
-mcp = FastMCP("Cursor Development Assistant v2.1")
-
 # Configuration
 SERVER_PORT = 8000
 SERVER_HOST = "127.0.0.1"
 SERVER_VERSION = "2.2.0"  # Enhanced AI-Assistant Edition
+
+# Initialize FastMCP server
+mcp = FastMCP("Cursor Development Assistant v2.1")
+
+# Add health endpoint to fix 404 errors in logs
+@mcp.custom_route("/health", methods=["GET"])
+async def health_endpoint(request):
+    """HTTP health endpoint for monitoring and load balancers"""
+    from starlette.responses import JSONResponse
+    return JSONResponse({
+        "status": "healthy",
+        "server": "Cursor Development Assistant",
+        "version": SERVER_VERSION,
+        "timestamp": datetime.now().isoformat(),
+        "transport": "http"
+    })
 SERVER_BUILD_TIME = datetime.now().isoformat()
 
 # Chrome Debug Protocol configuration

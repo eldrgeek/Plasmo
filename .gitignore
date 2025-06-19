@@ -3,11 +3,14 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
 # Plasmo build outputs
 build/
 dist/
 .plasmo/
+packages/*/build/
+packages/*/.plasmo/
 
 # Package files
 *.tgz
@@ -92,8 +95,13 @@ jspm_packages/
 # TypeScript cache
 *.tsbuildinfo
 chrome-debug-profile/*
-__pycache__/*
+__pycache__/
+*/__pycache__/
+**/__pycache__/
 venv/
+.venv/
+*.pyc
+*.pyo
 # MCP Server files (uncomment if you don't want to track them)
 # mcp_server.py
 # requirements.txt
