@@ -168,7 +168,8 @@ class ServiceManager:
             name="mcp",
             service_type=ServiceType.MCP_SERVER,
             implementation=ImplementationType.PYTHON,
-            command=[sys.executable, "mcp_server.py"],
+            command=[sys.executable, "packages/mcp-server/mcp_server.py", "--host", "127.0.0.1", "--port", "8000"],
+            port=8000,
             log_file="mcp_server.log",
             env_vars={"PYTHONPATH": str(self.base_dir)}
         )
