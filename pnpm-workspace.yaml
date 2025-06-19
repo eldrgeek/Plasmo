@@ -1,0 +1,3 @@
+packages:
+  - 'packages/*'
+  - 'packages/firebase-chat/firebase-discord-chat'

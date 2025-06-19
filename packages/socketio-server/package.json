@@ -1,0 +1,23 @@
+{
+  "name": "@plasmo/socketio-server",
+  "version": "1.0.0",
+  "description": "Socket.IO server for Plasmo extension communication",
+  "main": "socketio_server.js",
+  "private": true,
+  "scripts": {
+    "start": "node socketio_server.js",
+    "start:python": "python socketio_server_python.py",
+    "dev": "nodemon socketio_server.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.1",
+    "express": "^4.18.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

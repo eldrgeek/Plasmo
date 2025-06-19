@@ -1,40 +1,31 @@
 {
-  "name": "my-plasmo-extension",
-  "displayName": "My Plasmo Extension",
-  "version": "0.0.1",
-  "description": "A basic Chrome extension built with Plasmo",
-  "author": "Your Name",
+  "name": "plasmo-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Plasmo Chrome Extension and Services Monorepo",
+  "workspaces": [
+    "packages/*",
+    "packages/firebase-chat/firebase-discord-chat"
+  ],
   "scripts": {
-    "dev": "plasmo dev",
-    "build": "plasmo build",
-    "package": "plasmo package",
+    "dev": "pnpm --filter chrome-extension dev",
+    "build": "pnpm --filter chrome-extension build",
+    "package": "pnpm --filter chrome-extension package",
     "install-browser": "npx playwright install chromium",
-    "firebase-automate": "node firebase-console-automation.js",
-    "firebase-example": "node firebase-automation-example.js"
-  },
-  "dependencies": {
-    "express": "^5.1.0",
-    "plasmo": "0.90.5",
-    "playwright": "^1.40.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.7.2"
+    "firebase-automate": "node packages/firebase-chat/firebase-console-automation.js",
+    "firebase-example": "node packages/firebase-chat/firebase-automation-example.js",
+    "start-mcp": "cd packages/mcp-server && ./start_mcp.sh",
+    "start-socketio": "cd packages/socketio-server && python socketio_server_python.py",
+    "start-dashboard": "cd packages/dashboard-framework && python launch_dashboard.py",
+    "start-all": "python launch_all.py"
   },
   "devDependencies": {
-    "@types/chrome": "0.0.246",
-    "@types/node": "20.5.9",
-    "@types/react": "18.2.21",
-    "@types/react-dom": "18.2.7",
-    "nodemon": "^3.1.10",
-    "prettier": "^3.0.0",
-    "typescript": "5.2.2"
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
   },
-  "manifest": {
-    "permissions": [
-      "activeTab",
-      "storage",
-      "nativeMessaging"
-    ]
-  }
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.0.0"
 }

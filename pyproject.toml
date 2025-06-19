@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plasmo-services"
+version = "1.0.0"
+description = "Plasmo Services Collection"
+readme = "README.md"
+authors = [
+    {name = "Plasmo Team"}
+]
+requires-python = ">=3.8"
+
+[tool.setuptools.packages.find]
+where = ["shared", "packages"]
+include = ["python-common*", "mcp-server*", "socketio-server*", "dashboard-framework*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "packages/*/tests"]
+python_files = ["test_*.py", "*_test.py"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.git
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
