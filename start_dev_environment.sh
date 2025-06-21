@@ -60,9 +60,9 @@ if ! command -v pnpm &> /dev/null; then
 fi
 
 # Check if MCP server file exists
-if [ ! -f "mcp_server.py" ]; then
-    echo "❌ Error: mcp_server.py not found"
-    exit 1
+if [ ! -f "packages/mcp-server/mcp_server.py" ]; then
+echo "❌ Error: packages/mcp-server/mcp_server.py not found"
+exit 1
 fi
 
 # Check if package.json exists
@@ -83,7 +83,7 @@ start_mcp_server() {
     fi
     
     echo "🔧 Starting Consolidated MCP Server v2.0..."
-    python3 mcp_server.py --port 8000 &
+    python3 packages/mcp-server/mcp_server.py --port 8000 &
     MCP_PID=$!
     
     # Wait a moment for MCP server to start

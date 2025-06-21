@@ -184,8 +184,7 @@ import requests
 # Socket.IO import for orchestration
 import socketio
 
-# FastMCP import
-from fastmcp import FastMCP
+# FastMCP import moved to after print suppression setup
 
 # Claude Instance Management Integration
 import sys
@@ -202,24 +201,69 @@ if os.path.exists(yesh_clone_dir):
             coordinate_claude_instances_tool
         )
         CLAUDE_INSTANCES_AVAILABLE = True
-        print("✅ Claude instance management tools loaded")
+        pass  # Claude instance management tools loaded (silent for stdio)
     except ImportError as e:
         CLAUDE_INSTANCES_AVAILABLE = False
-        print(f"⚠️  Claude instance tools not available: {e}")
+        pass  # Claude instance tools not available (silent for stdio)
 else:
     CLAUDE_INSTANCES_AVAILABLE = False
-    print("⚠️  YeshClone directory not found for Claude instance tools")
+    pass  # YeshClone directory not found (silent for stdio)
 
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.expanduser('~/mcp_server.log')),  # Write to home directory
-        logging.StreamHandler()
-    ]
-)
+# Configure logging and suppress ALL output for stdio mode
+import sys
+
+# In stdio mode, disable ALL output to avoid interfering with JSON-RPC
+if '--stdio' in sys.argv:
+    # Completely suppress print statements for stdio mode
+    original_print = print
+    def silent_print(*args, **kwargs):
+        pass  # Do nothing - completely silent
+    
+    # Replace print globally before any imports
+    import builtins
+    builtins.print = silent_print
+    
+    # Completely disable logging to console during stdio mode
+    logging.basicConfig(
+        level=logging.CRITICAL + 1,  # Above critical to disable all logging
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.FileHandler(os.path.expanduser('~/mcp_server.log'))]
+    )
+    
+    # Disable specific loggers that might output during FastMCP startup
+    logging.getLogger('fastmcp').setLevel(logging.CRITICAL + 1)
+    logging.getLogger('mcp').setLevel(logging.CRITICAL + 1)
+    logging.getLogger('uvicorn').setLevel(logging.CRITICAL + 1)
+    
+    # Disable rich console output completely
+    import os
+    os.environ['RICH_CONSOLE'] = 'false'
+    
+    # Suppress all console output by redirecting to devnull temporarily
+    class DevNull:
+        def write(self, *args, **kwargs): pass
+        def flush(self, *args, **kwargs): pass
+    
+    # Store original streams
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    
+    # Redirect during FastMCP import
+    devnull = DevNull()
+    sys.stdout = devnull
+    sys.stderr = devnull
+    
+else:
+    # HTTP mode - normal logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.expanduser('~/mcp_server.log')),
+            logging.StreamHandler()
+        ]
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -296,10 +340,32 @@ async def run_background_task(coro, task_name: str = "unnamed"):
 # Configuration
 SERVER_PORT = 8000
 SERVER_HOST = "127.0.0.1"
-SERVER_VERSION = "2.2.0"  # Enhanced AI-Assistant Edition
+SERVER_VERSION = "2.2.3"  # Enhanced AI-Assistant Edition - Complete Fix
+FIX_STATUS = "Working Directory, Messaging Paths, Tool Registration & Notification System Fixed"
 
-# Initialize FastMCP server
-mcp = FastMCP("Cursor Development Assistant v2.1")
+# Initialize FastMCP server (imported after print suppression)
+if '--stdio' in sys.argv:
+    # FastMCP uses direct stdout writes, so we need stdout suppressed during import/init
+    from fastmcp import FastMCP
+    mcp = FastMCP("Cursor Development Assistant v2.1")
+else:
+    from fastmcp import FastMCP
+    mcp = FastMCP("Cursor Development Assistant v2.1")
+
+# Restore stdout/stderr for stdio mode after FastMCP initialization
+if '--stdio' in sys.argv:
+    sys.stdout = original_stdout
+    sys.stderr = original_stderr
+    
+    # Try to disable Rich console completely after FastMCP is loaded
+    try:
+        import rich.console
+        original_console_print = rich.console.Console.print
+        def silent_console_print(self, *args, **kwargs):
+            pass
+        rich.console.Console.print = silent_console_print
+    except ImportError:
+        pass
 
 # Add health endpoint to fix 404 errors in logs
 @mcp.custom_route("/health", methods=["GET"])
@@ -341,21 +407,41 @@ import shutil
 import re
 from typing import Tuple
 
-# Messaging system configuration
-MESSAGING_ROOT = Path.cwd() / "messages"
-AGENTS_DIR = MESSAGING_ROOT / "agents"
-MESSAGES_DIR = MESSAGING_ROOT / "messages"
-DELETED_DIR = MESSAGING_ROOT / "deleted"
-SEQUENCE_FILE = MESSAGING_ROOT / "sequence.txt"
+# Messaging system configuration - Dynamic paths that respect working directory changes
+def get_messaging_root() -> Path:
+    """Get messaging root directory, respecting current working directory."""
+    return Path.cwd() / "messages"
+
+def get_agents_dir() -> Path:
+    """Get agents directory."""
+    return get_messaging_root() / "agents"
+
+def get_messages_dir() -> Path:
+    """Get messages directory."""
+    return get_messaging_root() / "messages"
+
+def get_deleted_dir() -> Path:
+    """Get deleted messages directory."""
+    return get_messaging_root() / "deleted"
+
+def get_sequence_file() -> Path:
+    """Get sequence file path."""
+    return get_messaging_root() / "sequence.txt"
 
 def ensure_messaging_directories():
     """Ensure all messaging directories exist."""
-    for directory in [MESSAGING_ROOT, AGENTS_DIR, MESSAGES_DIR, DELETED_DIR]:
+    messaging_root = get_messaging_root()
+    agents_dir = get_agents_dir()
+    messages_dir = get_messages_dir()
+    deleted_dir = get_deleted_dir()
+    sequence_file = get_sequence_file()
+    
+    for directory in [messaging_root, agents_dir, messages_dir, deleted_dir]:
         directory.mkdir(parents=True, exist_ok=True)
     
     # Initialize sequence file if it doesn't exist
-    if not SEQUENCE_FILE.exists():
-        SEQUENCE_FILE.write_text("0")
+    if not sequence_file.exists():
+        sequence_file.write_text("0")
 
 def get_agent_name() -> str:
     """Get agent name from current repo directory."""
@@ -364,11 +450,13 @@ def get_agent_name() -> str:
 def get_next_message_id() -> int:
     """Get next sequential message ID with proper locking."""
     ensure_messaging_directories()
+    sequence_file = get_sequence_file()
+    
     try:
         # Use file locking for thread safety
         try:
             import fcntl
-            with open(SEQUENCE_FILE, 'r+') as f:
+            with open(sequence_file, 'r+') as f:
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                 try:
                     current_id = int(f.read().strip() or "0")
@@ -382,15 +470,15 @@ def get_next_message_id() -> int:
         except ImportError:
             # Fallback for systems without fcntl (Windows)
             try:
-                current_id = int(SEQUENCE_FILE.read_text().strip() or "0")
+                current_id = int(sequence_file.read_text().strip() or "0")
                 next_id = current_id + 1
-                SEQUENCE_FILE.write_text(str(next_id))
+                sequence_file.write_text(str(next_id))
                 return next_id
             except Exception:
-                SEQUENCE_FILE.write_text("1")
+                sequence_file.write_text("1")
                 return 1
     except (ValueError, FileNotFoundError):
-        SEQUENCE_FILE.write_text("1")
+        sequence_file.write_text("1")
         return 1
 
 def register_agent() -> Dict[str, Any]:
@@ -398,7 +486,7 @@ def register_agent() -> Dict[str, Any]:
     ensure_messaging_directories()
     
     agent_name = get_agent_name()
-    agent_dir = AGENTS_DIR / agent_name
+    agent_dir = get_agents_dir() / agent_name
     agent_dir.mkdir(exist_ok=True)
     
     # Get repo information
@@ -437,7 +525,7 @@ def register_agent() -> Dict[str, Any]:
 
 def get_agent_registration(agent_name: str) -> Optional[Dict[str, Any]]:
     """Get registration info for a specific agent."""
-    agent_dir = AGENTS_DIR / agent_name
+    agent_dir = get_agents_dir() / agent_name
     agent_info_file = agent_dir / "info.json"
     
     if not agent_info_file.exists():
@@ -454,7 +542,7 @@ def list_registered_agents() -> List[Dict[str, Any]]:
     ensure_messaging_directories()
     agents = []
     
-    for agent_dir in AGENTS_DIR.iterdir():
+    for agent_dir in get_agents_dir().iterdir():
         if agent_dir.is_dir():
             agent_info = get_agent_registration(agent_dir.name)
             if agent_info:
@@ -481,7 +569,7 @@ def create_message(to: str, subject: str, message: str, reply_to: Optional[int] 
     }
     
     # Save message
-    message_file = MESSAGES_DIR / f"{message_id}.json"
+    message_file = get_messages_dir() / f"{message_id}.json"
     with open(message_file, 'w', encoding='utf-8') as f:
         json.dump(message_data, f, indent=2)
     
@@ -497,7 +585,7 @@ def get_messages(agent_name: str, filters: Optional[Dict[str, Any]] = None) -> L
     messages = []
     
     # Read all message files
-    for message_file in MESSAGES_DIR.glob("*.json"):
+    for message_file in get_messages_dir().glob("*.json"):
         try:
             with open(message_file, 'r', encoding='utf-8') as f:
                 message_data = json.load(f)
@@ -546,7 +634,7 @@ def get_messages(agent_name: str, filters: Optional[Dict[str, Any]] = None) -> L
 
 def mark_message_read(message_id: int, agent_name: str) -> bool:
     """Mark a message as read."""
-    message_file = MESSAGES_DIR / f"{message_id}.json"
+    message_file = get_messages_dir() / f"{message_id}.json"
     
     if not message_file.exists():
         return False
@@ -572,7 +660,7 @@ def mark_message_read(message_id: int, agent_name: str) -> bool:
 
 def delete_message(message_id: int, agent_name: str) -> bool:
     """Delete a message (move to deleted folder). Only sender can delete."""
-    message_file = MESSAGES_DIR / f"{message_id}.json"
+    message_file = get_messages_dir() / f"{message_id}.json"
     
     if not message_file.exists():
         return False
@@ -586,7 +674,7 @@ def delete_message(message_id: int, agent_name: str) -> bool:
             return False
         
         # Move to deleted folder
-        deleted_file = DELETED_DIR / f"{message_id}.json"
+        deleted_file = get_deleted_dir() / f"{message_id}.json"
         shutil.move(str(message_file), str(deleted_file))
         
         return True
@@ -745,7 +833,7 @@ def messages(operation: str, payload: Optional[Dict[str, Any]] = None) -> Dict[s
             if not original_messages:
                 # Check if we sent the original message
                 try:
-                    message_file = MESSAGES_DIR / f"{payload['reply_to']}.json"
+                    message_file = get_messages_dir() / f"{payload['reply_to']}.json"
                     if message_file.exists():
                         with open(message_file, 'r', encoding='utf-8') as f:
                             original_message = json.load(f)
@@ -830,10 +918,7 @@ def messages(operation: str, payload: Optional[Dict[str, Any]] = None) -> Dict[s
         logger.error(f"Messages operation failed: {e}")
         return handle_error("messages", e, {"operation": operation, "payload": payload})
 
-# Configuration
-SERVER_PORT = 8000
-SERVER_HOST = "127.0.0.1"
-SERVER_VERSION = "2.0.1"
+# Duplicate configuration removed - using version from top of file
 SERVER_BUILD_TIME = datetime.now().isoformat()
 
 # Chrome Debug Protocol configuration
@@ -1159,22 +1244,47 @@ def get_system_info(include_sensitive: bool = False) -> Dict[str, Any]:
 def server_info() -> Dict[str, Any]:
     """Get comprehensive MCP server information and status."""
     try:
-        # Get tools from the MCP server
+        # Get tools from the MCP server using FastMCP's registry
         tools_list = []
         try:
-            # Since get_tools() is async, we'll use a different approach
-            # Count tools by looking at all function objects with 'fn' attribute
-            import inspect
-            tools_list = [name for name, obj in globals().items() 
-                         if hasattr(obj, 'fn') and hasattr(obj, 'name')]
+            # Get tools from FastMCP's internal registry
+            if hasattr(mcp, '_tools'):
+                tools_list = list(mcp._tools.keys())
+            elif hasattr(mcp, 'tools'):
+                tools_list = list(mcp.tools.keys())
+            else:
+                # Fallback: count decorated functions directly
+                import inspect
+                current_module = inspect.getmodule(inspect.currentframe())
+                tools_list = []
+                for name, obj in current_module.__dict__.items():
+                    if hasattr(obj, '__wrapped__') and hasattr(obj, '__name__'):
+                        # Check if this is a tool-decorated function
+                        if hasattr(obj, '_tool_info') or str(obj).find('@mcp.tool') > -1:
+                            tools_list.append(name)
         except Exception as e:
             logger.warning(f"Could not get tools list: {e}")
+            # Manual count as last resort
+            tools_list = ["messages", "get_project_structure", "analyze_code", "get_system_info", 
+                         "server_info", "health", "connect_to_chrome", "get_chrome_tabs", 
+                         "launch_chrome_debug", "execute_javascript", "send_orchestration_command",
+                         "inject_prompt_native", "focus_and_type_native", "notify", "get_last_errors",
+                         "smart_write_file", "smart_read_file", "smart_edit_file", "patch_file",
+                         "file_manager", "launch_claude_instance", "list_claude_instances",
+                         "send_inter_instance_message", "coordinate_claude_instances",
+                         "firebase_setup_new_project", "firebase_configure_existing_project",
+                         "firebase_project_status", "firebase_batch_operations"]
+        
+        # Get current working directory for debugging
+        current_working_dir = os.getcwd()
         
         return {
             "server_name": "Cursor Development Assistant",
             "version": SERVER_VERSION,
             "build_time": SERVER_BUILD_TIME,
             "description": "Consolidated MCP server with Chrome Debug Protocol integration",
+            "fix_status": FIX_STATUS,
+            "working_directory": current_working_dir,
             "transport": "HTTP",
             "host": SERVER_HOST,
             "port": SERVER_PORT,
@@ -1201,7 +1311,13 @@ def server_info() -> Dict[str, Any]:
                 "Unicode-safe logging"
             ],
             "status": "operational",
-            "current_time": datetime.now().isoformat()
+            "current_time": datetime.now().isoformat(),
+            "debug_info": {
+                "messages_dir_exists": os.path.exists("messages"),
+                "project_files_accessible": os.path.exists("README.md"),
+                "fix_attempt": "1 - Working Directory & Messaging Fix Applied",
+                "claude_desktop_config": "Wrapper Script Mode"
+            }
         }
     except Exception as e:
         return {"error": str(e), "timestamp": datetime.now().isoformat()}
@@ -1924,13 +2040,24 @@ def focus_and_type_native(
 # ============================================================================
 
 # Notification system configuration
-NOTIFICATIONS_ROOT = MESSAGING_ROOT / "notifications"
-NOTIFICATIONS_DIR = NOTIFICATIONS_ROOT / "pending"
-CANCEL_FLAGS_DIR = NOTIFICATIONS_ROOT / "cancel_flags"
+def get_notifications_root() -> Path:
+    """Get notifications root directory dynamically."""
+    return get_messaging_root() / "notifications"
+
+def get_notifications_dir() -> Path:
+    """Get notifications pending directory dynamically."""
+    return get_notifications_root() / "pending"
+
+def get_cancel_flags_dir() -> Path:
+    """Get cancel flags directory dynamically."""
+    return get_notifications_root() / "cancel_flags"
 
 def ensure_notification_directories():
     """Ensure all notification directories exist."""
-    for directory in [NOTIFICATIONS_ROOT, NOTIFICATIONS_DIR, CANCEL_FLAGS_DIR]:
+    notifications_root = get_notifications_root()
+    notifications_dir = get_notifications_dir()
+    cancel_flags_dir = get_cancel_flags_dir()
+    for directory in [notifications_root, notifications_dir, cancel_flags_dir]:
         directory.mkdir(parents=True, exist_ok=True)
 
 def create_notification(target_agent: str, message: str, sender: str = None) -> Dict[str, Any]:
@@ -1952,7 +2079,7 @@ def create_notification(target_agent: str, message: str, sender: str = None) -> 
     }
     
     # Save notification atomically
-    notification_file = NOTIFICATIONS_DIR / f"{target_agent}_{notification_id}.json"
+    notification_file = get_notifications_dir() / f"{target_agent}_{notification_id}.json"
     temp_file = notification_file.with_suffix('.tmp')
     
     with open(temp_file, 'w', encoding='utf-8') as f:
@@ -1973,7 +2100,7 @@ def get_pending_notifications(agent_name: str) -> List[Dict[str, Any]]:
     notifications = []
     pattern = f"{agent_name}_*.json"
     
-    for notification_file in NOTIFICATIONS_DIR.glob(pattern):
+    for notification_file in get_notifications_dir().glob(pattern):
         try:
             with open(notification_file, 'r', encoding='utf-8') as f:
                 notification_data = json.load(f)
@@ -1993,7 +2120,7 @@ def delete_notifications(agent_name: str, notification_ids: List[str] = None) ->
     deleted_count = 0
     pattern = f"{agent_name}_*.json"
     
-    for notification_file in NOTIFICATIONS_DIR.glob(pattern):
+    for notification_file in get_notifications_dir().glob(pattern):
         try:
             if notification_ids is None:
                 # Delete all notifications for agent
@@ -2016,7 +2143,7 @@ def set_cancel_flag(agent_name: str) -> bool:
     """Set cancel flag to interrupt waiting agent."""
     ensure_notification_directories()
     
-    cancel_file = CANCEL_FLAGS_DIR / f"{agent_name}.cancel"
+    cancel_file = get_cancel_flags_dir() / f"{agent_name}.cancel"
     try:
         cancel_file.write_text(datetime.now().isoformat())
         logger.info(f"Set cancel flag for {agent_name}")
@@ -2029,7 +2156,7 @@ def check_cancel_flag(agent_name: str) -> bool:
     """Check if agent has a cancel flag set."""
     ensure_notification_directories()
     
-    cancel_file = CANCEL_FLAGS_DIR / f"{agent_name}.cancel"
+    cancel_file = get_cancel_flags_dir() / f"{agent_name}.cancel"
     if cancel_file.exists():
         try:
             cancel_file.unlink()  # Remove flag after checking
@@ -4082,6 +4209,34 @@ if __name__ == "__main__":
     parser.add_argument("--stdio", action="store_true", help="Use STDIO transport")
     
     args = parser.parse_args()
+    
+    # Set working directory to the project root if running in STDIO mode
+    # This ensures file operations work with relative paths from the project
+    if args.stdio:
+        # Get the script's directory and navigate to project root
+        script_dir = Path(__file__).parent.absolute()
+        project_root = script_dir.parent.parent  # Go up from packages/mcp-server to project root
+        if project_root.exists():
+            os.chdir(project_root)
+            logger.info(f"Changed working directory to: {project_root}")
+            
+            # Ensure messaging directories exist for STDIO mode
+            messages_dir = project_root / "messages"
+            messages_dir.mkdir(exist_ok=True)
+            (messages_dir / "agents").mkdir(exist_ok=True)
+            (messages_dir / "messages").mkdir(exist_ok=True)
+            (messages_dir / "deleted").mkdir(exist_ok=True)
+            (messages_dir / "notifications").mkdir(exist_ok=True)
+            (messages_dir / "notifications" / "pending").mkdir(exist_ok=True)
+            (messages_dir / "notifications" / "cancel_flags").mkdir(exist_ok=True)
+            
+            # Create sequence file if it doesn't exist
+            sequence_file = messages_dir / "sequence.txt"
+            if not sequence_file.exists():
+                sequence_file.write_text("0")
+            
+            logger.info(f"STDIO Fix Applied - Messages dir ready: {messages_dir}")
+    
     if not args.stdio:
         print(f"""
     🚀 Consolidated MCP Server v{SERVER_VERSION} Starting

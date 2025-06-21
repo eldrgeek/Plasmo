@@ -1,0 +1,45 @@
+[
+  {
+    "id": "1",
+    "title": "Build CollaborAItion dashboard homepage",
+    "description": "Create Python/FastHTML dashboard for multi-agent coordination",
+    "status": "in_progress",
+    "assignedTo": "cc-alex",
+    "priority": "high",
+    "createdAt": "2024-12-20T10:00:00Z",
+    "updatedAt": "2024-12-20T10:30:00Z",
+    "tags": ["dashboard", "frontend", "architecture"]
+  },
+  {
+    "id": "2", 
+    "title": "Implement task tracking system",
+    "description": "Build real-time task status display and management with file-based storage",
+    "status": "pending",
+    "priority": "high",
+    "createdAt": "2024-12-20T10:15:00Z",
+    "updatedAt": "2024-12-20T10:15:00Z",
+    "tags": ["backend", "data-management", "real-time"]
+  },
+  {
+    "id": "3",
+    "title": "Create agent coordination interfaces", 
+    "description": "Design communication protocols and UI for inter-agent coordination",
+    "status": "pending",
+    "assignedTo": "cc-gem",
+    "priority": "medium",
+    "createdAt": "2024-12-20T10:20:00Z",
+    "updatedAt": "2024-12-20T10:20:00Z", 
+    "tags": ["coordination", "communication", "interfaces"]
+  },
+  {
+    "id": "4",
+    "title": "Set up auto-reload system",
+    "description": "Implement file watching for automatic server restart on code/config changes",
+    "status": "pending",
+    "assignedTo": "cc-alex", 
+    "priority": "high",
+    "createdAt": "2024-12-20T10:35:00Z",
+    "updatedAt": "2024-12-20T10:35:00Z",
+    "tags": ["development", "automation", "productivity"]
+  }
+]

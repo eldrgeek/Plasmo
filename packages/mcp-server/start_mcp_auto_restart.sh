@@ -13,7 +13,6 @@ WATCHER_PID=""
 # Files to watch for MCP server changes
 MCP_WATCH_FILES=(
     "mcp_server.py"
-    "chrome_debug_fixes.py"
     "requirements.txt"
 )
 

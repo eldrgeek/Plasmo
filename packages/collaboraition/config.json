@@ -1,0 +1,42 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8000,
+    "debug": true,
+    "auto_reload": true
+  },
+  "project": {
+    "name": "CollaborAItion 0.1",
+    "description": "Multi-Agent AI Collaboration Platform",
+    "version": "0.1.0"
+  },
+  "agents": [
+    {
+      "id": "cc-alex",
+      "name": "CC-Alex",
+      "role": "Technical Co-founder",
+      "status": "active",
+      "capabilities": ["coding", "architecture", "deployment"]
+    },
+    {
+      "id": "cc-gem",
+      "name": "CC-Gem", 
+      "role": "Strategic Partner",
+      "status": "idle",
+      "capabilities": ["ux", "strategy", "creative-solutions"]
+    },
+    {
+      "id": "river",
+      "name": "River",
+      "role": "Team Coordinator", 
+      "status": "active",
+      "capabilities": ["coordination", "task-management", "routing"]
+    }
+  ],
+  "data": {
+    "storage_path": "./data",
+    "tasks_file": "tasks.json",
+    "agents_file": "agents.json",
+    "messages_file": "messages.json"
+  }
+}

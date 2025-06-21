@@ -1,0 +1,35 @@
+[
+  {
+    "id": "cc-alex",
+    "name": "CC-Alex", 
+    "role": "Technical Co-founder",
+    "status": "active",
+    "lastActivity": "2024-12-20T10:35:00Z",
+    "currentTask": "Building CollaborAItion package structure",
+    "capabilities": ["coding", "architecture", "deployment", "fasthtml", "python"],
+    "workingStyle": "Pragmatic executor, systems thinker, quality focused",
+    "contactMethod": "direct-message"
+  },
+  {
+    "id": "cc-gem",
+    "name": "CC-Gem",
+    "role": "Strategic Partner", 
+    "status": "idle",
+    "lastActivity": "2024-12-20T10:00:00Z",
+    "currentTask": null,
+    "capabilities": ["ux", "strategy", "creative-solutions", "user-research"],
+    "workingStyle": "Creative strategist, user-focused, innovative",
+    "contactMethod": "coordination-channel"
+  },
+  {
+    "id": "river", 
+    "name": "River",
+    "role": "Team Coordinator",
+    "status": "active", 
+    "lastActivity": "2024-12-20T10:30:00Z",
+    "currentTask": "Managing project coordination and task routing",
+    "capabilities": ["coordination", "task-management", "routing", "communication"],
+    "workingStyle": "Organized facilitator, communication hub",
+    "contactMethod": "always-available"
+  }
+]

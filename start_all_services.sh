@@ -37,9 +37,9 @@ print_info() {
 }
 
 # Check if required files exist
-if [ ! -f "mcp_server.py" ]; then
-    print_error "❌ mcp_server.py not found!"
-    exit 1
+if [ ! -f "packages/mcp-server/mcp_server.py" ]; then
+print_error "❌ packages/mcp-server/mcp_server.py not found!"
+exit 1
 fi
 
 if [ ! -f "socketio_server.js" ]; then
@@ -99,7 +99,7 @@ start_mcp_server() {
         print_warning "⚠️  Falling back to simple start..."
         
         # Simple fallback
-        nohup python3 mcp_server.py --port 8000 > logs/mcp_server.log 2>&1 &
+        nohup python3 packages/mcp-server/mcp_server.py --port 8000 > logs/mcp_server.log 2>&1 &
         MCP_PID=$!
         disown
         print_status "✅ MCP Server started (simple mode, no auto-restart)"
