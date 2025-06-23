@@ -51,6 +51,7 @@ class ServiceType(Enum):
     SOCKETIO = "socketio"
     MCP_SERVER = "mcp_server"
     MCP_TESTING_PROXY = "mcp_testing_proxy"  
+    MCP_TESTER = "mcp_tester"
     PLASMO_DEV = "plasmo_dev"
     CONTINUOUS_TESTS = "continuous_tests"
     DASHBOARD = "dashboard"
@@ -607,10 +608,34 @@ class ServiceManager:
                 auto_restart=True
             )
         
+        # MCP Tester Service Configuration
+        mcp_tester_config = ServiceConfig(
+            name="mcp_tester",
+            service_type=ServiceType.MCP_TESTER,
+            implementation=ImplementationType.PYTHON,
+            command=[sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--verbose"],
+            working_dir=str(self.base_dir),
+            log_file="mcp_tester.log",
+            env_vars={"PYTHONPATH": str(self.base_dir)},
+            # File watching configuration - watch for MCP server and tester changes
+            watch_patterns=[
+                "packages/mcp-server/mcp_server.py", 
+                "packages/mcp-server/mcp_testing_proxy.py",
+                "packages/mcp-server/mcp_protocol_tester.py"
+            ],
+            watch_dirs=[],  # Don't watch whole directories
+            ignore_patterns=["*.log", "__pycache__/*", "*.pyc", "test_temp_mcp/*"],
+            validation_command=[sys.executable, "-m", "py_compile", "packages/mcp-server/mcp_protocol_tester.py"],
+            restart_delay=3.0,
+            debounce_delay=2.0,
+            auto_restart=False  # MCP tester runs on-demand, not continuously
+        )
+        
         self.service_configs = {
             "socketio": socketio_config,
             "mcp": mcp_config,
             "mcp_proxy": mcp_proxy_config,
+            "mcp_tester": mcp_tester_config,
             "plasmo": plasmo_config,
             "tests": tests_config,
             "dashboard": dashboard_config,
@@ -679,6 +704,9 @@ class ServiceManager:
                         return True, proc.info['pid']
                 elif service_name == "mcp_proxy":
                     if "mcp_testing_proxy.py" in cmdline_str:
+                        return True, proc.info['pid']
+                elif service_name == "mcp_tester":
+                    if "mcp_protocol_tester.py" in cmdline_str:
                         return True, proc.info['pid']
                 elif service_name == "chrome_debug":
                     if ("chrome-debug-profile" in cmdline_str and 
@@ -1596,6 +1624,135 @@ def install_deps(ctx):
     else:
         manager.print_status("✅ All dependencies installed successfully", "success")
         manager.print_status("💡 Restart the service manager to use new features", "info")
+
+# MCP Testing Commands
+@cli.command("run-tests")
+@click.option('--mode', type=click.Choice(['direct', 'proxy']), default='direct', 
+              help='Test mode: direct server or through proxy')
+@click.option('--test', help='Run specific test by name')
+@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
+@click.pass_context
+def run_tests(ctx, mode, test, verbose):
+    """Run MCP protocol tests"""
+    manager = ctx.obj['manager']
+    
+    cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--mode", mode]
+    
+    if verbose:
+        cmd.append("--verbose")
+    
+    if test:
+        cmd.extend(["--test", test])
+    
+    manager.print_status(f"🧪 Running MCP tests (mode: {mode})", "info")
+    if test:
+        manager.print_status(f"   🎯 Running test: {test}", "info")
+    
+    try:
+        result = subprocess.run(cmd, check=False)
+        if result.returncode == 0:
+            manager.print_status("✅ All tests passed!", "success")
+        else:
+            manager.print_status("❌ Some tests failed", "error")
+        sys.exit(result.returncode)
+    except KeyboardInterrupt:
+        manager.print_status("🛑 Tests interrupted", "warning")
+        sys.exit(1)
+
+@cli.command("test-server")
+@click.argument('target', type=click.Choice(['mcp', 'proxy']))
+@click.pass_context
+def test_server(ctx, target):
+    """Test specific MCP server (mcp or proxy)"""
+    manager = ctx.obj['manager']
+    
+    # Check if target service is running
+    is_running, pid = manager.is_service_running(target)
+    if not is_running:
+        manager.print_status(f"❌ {target.upper()} server is not running. Start it first.", "error")
+        sys.exit(1)
+    
+    mode = "direct" if target == "mcp" else "proxy"
+    
+    cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--mode", mode, "--verbose"]
+    
+    manager.print_status(f"🧪 Testing {target.upper()} server (PID: {pid})", "info")
+    
+    try:
+        result = subprocess.run(cmd, check=False)
+        if result.returncode == 0:
+            manager.print_status(f"✅ {target.upper()} server tests passed!", "success")
+        else:
+            manager.print_status(f"❌ {target.upper()} server tests failed", "error")
+        sys.exit(result.returncode)
+    except KeyboardInterrupt:
+        manager.print_status("🛑 Tests interrupted", "warning")
+        sys.exit(1)
+
+@cli.command("compare-modes")
+@click.pass_context
+def compare_modes(ctx):
+    """Compare test results between direct and proxy modes"""
+    manager = ctx.obj['manager']
+    
+    # Check if both servers are running
+    mcp_running, mcp_pid = manager.is_service_running("mcp")
+    proxy_running, proxy_pid = manager.is_service_running("mcp_proxy")
+    
+    if not mcp_running:
+        manager.print_status("❌ MCP server is not running. Start it first.", "error")
+        sys.exit(1)
+    
+    if not proxy_running:
+        manager.print_status("❌ MCP proxy is not running. Start it first.", "error")
+        sys.exit(1)
+    
+    manager.print_status("🔄 Running comparative tests between direct and proxy modes", "info")
+    manager.print_status(f"   📊 MCP Server (PID: {mcp_pid}) vs MCP Proxy (PID: {proxy_pid})", "info")
+    
+    results = {}
+    
+    # Run tests in both modes
+    for mode in ['direct', 'proxy']:
+        manager.print_status(f"🧪 Testing {mode} mode...", "info")
+        cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--mode", mode]
+        
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            results[mode] = {
+                "success": result.returncode == 0,
+                "output": result.stdout,
+                "errors": result.stderr
+            }
+        except Exception as e:
+            results[mode] = {
+                "success": False,
+                "error": str(e)
+            }
+    
+    # Generate comparison report
+    manager.print_status("📊 Comparison Results:", "header")
+    
+    for mode, result in results.items():
+        status = "✅ PASSED" if result.get("success") else "❌ FAILED"
+        manager.print_status(f"   {mode.upper()}: {status}", 
+                           "success" if result.get("success") else "error")
+    
+    # Check consistency
+    direct_success = results.get("direct", {}).get("success", False)
+    proxy_success = results.get("proxy", {}).get("success", False)
+    
+    if direct_success == proxy_success:
+        manager.print_status("✅ Both modes have consistent results", "success")
+    else:
+        manager.print_status("⚠️  Inconsistent results between modes!", "warning")
+        manager.print_status("   This indicates potential proxy issues", "warning")
+    
+    # Exit with appropriate code
+    if direct_success and proxy_success:
+        sys.exit(0)
+    else:
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:

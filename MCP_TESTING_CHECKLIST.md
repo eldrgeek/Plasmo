@@ -49,43 +49,45 @@ Complete implementation of unit tests for `mcp_server.py` using `mcp-inspector` 
 **Goal**: Integrate mcp-inspector as a managed service in service_manager
 
 ### Tasks:
-- [ ] **Research mcp-inspector**
-  - [ ] Install mcp-inspector: `pip install mcp-inspector`
-  - [ ] Test basic functionality: `mcp-inspector --help`
-  - [ ] Understand CLI interface and testing capabilities
-  - [ ] Document connection requirements
+- [ ] **Extract and Enhance MCPProtocolTester**
+  - [ ] Create standalone `mcp_protocol_tester.py` from existing code
+  - [ ] Add CLI interface for command-line usage
+  - [ ] Enhance test coverage based on current mcp_server.py capabilities
+  - [ ] Add test configuration and result reporting
 
-- [ ] **Add Inspector Service to service_manager.py**
-  - [ ] Create `MCPInspectorService` class in `shared/python-common/services/`
-  - [ ] Define service configuration (port, command, dependencies)
-  - [ ] Add health check method specific to mcp-inspector
-  - [ ] Configure auto-restart and monitoring
+- [ ] **Add MCP Tester Service to service_manager.py**
+  - [ ] Create `MCPTesterService` class in `shared/python-common/services/`
+  - [ ] Define service configuration (command, dependencies, testing modes)
+  - [ ] Add health check method specific to MCP testing
+  - [ ] Configure auto-restart and monitoring for test files
 
 - [ ] **Update Service Manager Configuration**
-  - [ ] Add mcp-inspector to SERVICES list in `service_manager.py`
+  - [ ] Add mcp_tester to SERVICES list in `service_manager.py`
   - [ ] Configure service dependencies (should depend on mcp_server)
   - [ ] Set appropriate startup order
-  - [ ] Configure file watching patterns for test files
+  - [ ] Configure file watching patterns for test files and mcp_server changes
 
-- [ ] **Create Inspector Service CLI Commands**
-  - [ ] Add start/stop/status commands for mcp-inspector
-  - [ ] Add testing-specific commands (run-tests, test-server, etc.)
+- [ ] **Create MCP Tester CLI Commands**
+  - [ ] Add start/stop/status commands for mcp_tester
+  - [ ] Add testing-specific commands (run-tests, test-server, validate-tools)
   - [ ] Integrate with existing service management UI
+  - [ ] Add test scheduling and automation features
 
-- [ ] **Test Inspector Service Integration**
+- [ ] **Test MCP Tester Service Integration**
   - [ ] Test service starts/stops correctly
-  - [ ] Test auto-restart on file changes
+  - [ ] Test auto-restart when MCP server code changes
   - [ ] Test service status reporting
   - [ ] Test dependency management (starts after mcp_server)
+  - [ ] Validate continuous testing functionality
 
 - [ ] **Update Documentation**
-  - [ ] Add mcp-inspector service to service documentation
+  - [ ] Add mcp_tester service to service documentation
   - [ ] Update ENHANCED_SERVICE_MANAGER.md
-  - [ ] Document new CLI commands
+  - [ ] Document new CLI commands and testing workflows
 
-- [ ] **Commit Inspector Integration**
+- [ ] **Commit MCP Tester Integration**
   - [ ] Stage service integration changes
-  - [ ] Commit with message: "Add mcp-inspector as managed service"
+  - [ ] Commit with message: "Add MCP protocol tester as managed service"
 
 ---
 
@@ -307,7 +309,20 @@ Complete implementation of unit tests for `mcp_server.py` using `mcp-inspector` 
 - ✅ Ready for commit
 
 ### Phase 1 Notes:
--
+- 🔍 **DISCOVERY**: mcp-inspector package not found in pip/public repos
+- ✅ **ALTERNATIVE FOUND**: MCPProtocolTester class already exists in codebase
+- 📋 **NEW PLAN**: Integrate existing MCPProtocolTester into service_manager instead
+- 🎯 **APPROACH**: Create MCP test service using existing testing infrastructure
+- ✅ **COMPLETED**: Phase 1 fully implemented and tested
+
+### Phase 1 Implementation Summary:
+- ✅ Created standalone `mcp_protocol_tester.py` with CLI interface
+- ✅ Added `MCPTesterService` class in shared services
+- ✅ Added `MCP_TESTER` service type to service manager
+- ✅ Integrated service configuration with file watching
+- ✅ Added CLI commands: `run-tests`, `test-server`, `compare-modes`
+- ✅ Service manager recognizes and manages MCP testing
+- ✅ All infrastructure ready for comprehensive testing
 
 ### Phase 2 Notes:
 -
