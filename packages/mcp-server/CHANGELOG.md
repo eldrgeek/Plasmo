@@ -124,6 +124,39 @@
 
 ---
 
+## 2024-01-XX - Test Consolidation
+
+### Enhanced Protocol Tester
+- **CONSOLIDATED**: Combined `test_proxy_tools.py` functionality into `mcp_protocol_tester.py`
+- **NEW**: Added `--target=proxy` option for testing proxy servers
+- **NEW**: Added `--simple` flag for quick proxy validation 
+- **NEW**: Added `test_simple_proxy_validation()` method with the same logic as standalone proxy tester
+- **REMOVED**: `test_proxy_tools.py` (functionality merged into main tester)
+
+#### Usage Examples:
+```bash
+# Test direct server (all tests)
+python mcp_protocol_tester.py
+
+# Test proxy server (all tests)  
+python mcp_protocol_tester.py --target=proxy
+
+# Quick proxy validation (simple 3-step test)
+python mcp_protocol_tester.py --target=proxy --simple
+
+# Run specific test
+python mcp_protocol_tester.py --test=read_file
+
+# List available tests
+python mcp_protocol_tester.py --list-tests
+```
+
+#### Benefits:
+- Single unified testing tool for both direct and proxy testing
+- Reduced code duplication and maintenance burden
+- Consistent test framework and reporting
+- Command-line driven test selection
+
 ## Version Format
 
 - **Major.Minor.Patch** (e.g., 2.2.1)

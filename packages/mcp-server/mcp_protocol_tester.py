@@ -6,11 +6,15 @@ MCP Protocol Test Suite
 Tests the MCP server through the actual MCP protocol using stdio communication.
 This ensures the server works correctly when integrated with tools like Claude Desktop.
 
+Supports testing both direct servers and proxy servers with comprehensive test suites.
+
 Usage:
-    python mcp_protocol_tester.py              # Run all tests
-    python mcp_protocol_tester.py --verbose    # Verbose output
-    python mcp_protocol_tester.py --mode=proxy # Test against proxy instead of direct server
-    python mcp_protocol_tester.py --test=read_file # Run specific test
+    python mcp_protocol_tester.py                       # Test direct server (all tests)
+    python mcp_protocol_tester.py --target=proxy        # Test proxy (all tests)
+    python mcp_protocol_tester.py --target=proxy --simple # Test proxy (simple validation)
+    python mcp_protocol_tester.py --verbose             # Verbose output
+    python mcp_protocol_tester.py --test=read_file      # Run specific test
+    python mcp_protocol_tester.py --list-tests          # List available tests
 """
 
 import asyncio
@@ -31,9 +35,10 @@ from datetime import datetime
 class MCPProtocolTester:
     """Test MCP server through actual MCP protocol."""
     
-    def __init__(self, verbose=False, mode="direct", server_path=None):
+    def __init__(self, verbose=False, target="direct", server_path=None, simple_mode=False):
         self.verbose = verbose
-        self.mode = mode  # "direct" or "proxy"
+        self.target = target  # "direct" or "proxy"  
+        self.simple_mode = simple_mode  # For quick proxy validation
         self.test_results = {}
         self.server_process = None
         self.server_path = server_path or "mcp_server.py"
@@ -52,6 +57,7 @@ class MCPProtocolTester:
             "file_operations": self.test_file_operations,
             "system_operations": self.test_system_operations,
             "code_analysis": self.test_code_analysis,
+            "simple_proxy": self.test_simple_proxy_validation,
         }
         
         # Register cleanup handlers
@@ -124,13 +130,20 @@ if __name__ == "__main__":
     
     def start_mcp_server(self):
         """Start MCP server in stdio mode."""
-        server_script = "mcp_testing_proxy.py" if self.mode == "proxy" else self.server_path
-        self.log(f"Starting MCP server in stdio mode (mode: {self.mode})...")
+        if self.target == "proxy":
+            server_script = "mcp_proxy.py"
+            server_args = ["--stdio", "--backend-url", "http://localhost:8000/mcp"]
+        else:
+            server_script = self.server_path
+            server_args = ["--stdio"]
+            
+        self.log(f"Starting MCP server in stdio mode (target: {self.target})...")
         self.log(f"Server script: {server_script}")
         
         try:
+            command = [sys.executable, server_script] + server_args
             self.server_process = subprocess.Popen(
-                [sys.executable, server_script, "--stdio"],
+                command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -360,6 +373,79 @@ if __name__ == "__main__":
         
         return results
     
+    def test_simple_proxy_validation(self) -> Dict[str, Any]:
+        """Test simple proxy validation with basic MCP sequence (from test_proxy_tools.py)."""
+        self.log("Testing simple proxy validation...")
+        results = {}
+        
+        # 1. Test initialization (should already be done, but verify response)
+        self.log("  Step 1: Verifying initialization...")
+        init_response = self.send_mcp_request("initialize", {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "test-client", "version": "1.0"}
+        })
+        
+        if "result" in init_response:
+            server_info = init_response["result"].get("serverInfo", {})
+            self.log(f"    ✅ Server: {server_info.get('name', 'Unknown')}")
+            results["initialization"] = {"status": "PASS", "server_name": server_info.get('name', 'Unknown')}
+        else:
+            self.log("    ❌ Initialization failed", "FAIL")
+            results["initialization"] = {"status": "FAIL", "error": init_response.get('error', {})}
+            return results
+        
+        # 2. Test tools list 
+        self.log("  Step 2: Testing tools/list...")
+        tools_response = self.send_mcp_request("tools/list")
+        
+        if "result" in tools_response and "tools" in tools_response["result"]:
+            tools = tools_response["result"]["tools"]
+            self.log(f"    ✅ Found {len(tools)} tools")
+            results["tools_list"] = {"status": "PASS", "tool_count": len(tools)}
+            
+            # Show first few tools
+            if self.verbose and tools:
+                for tool in tools[:5]:
+                    name = tool.get("name", "unknown")
+                    desc = tool.get("description", "")[:50]
+                    self.log(f"      - {name}: {desc}")
+        else:
+            self.log("    ❌ Tools list failed", "FAIL")
+            results["tools_list"] = {"status": "FAIL", "error": tools_response.get('error', {})}
+            return results
+        
+        # 3. Test a simple tool call (read_file on README.md)
+        self.log("  Step 3: Testing simple tool call (read_file)...")
+        tool_response = self.send_mcp_request("tools/call", {
+            "name": "read_file",
+            "arguments": {"file_path": "README.md"}
+        })
+        
+        if "result" in tool_response:
+            result = tool_response["result"]
+            if isinstance(result, dict) and "content" in result:
+                content_preview = str(result["content"])[:100] if result["content"] else "empty"
+                self.log(f"    ✅ Tool call successful, content preview: {content_preview}...")
+                results["tool_call"] = {"status": "PASS", "tool": "read_file"}
+            else:
+                self.log(f"    ✅ Tool call successful: {str(result)[:100]}...")
+                results["tool_call"] = {"status": "PASS", "tool": "read_file"}
+        else:
+            self.log("    ❌ Tool call failed", "FAIL")
+            results["tool_call"] = {"status": "FAIL", "error": tool_response.get('error', {})}
+        
+        # Overall result
+        all_passed = all(r.get("status") == "PASS" for r in results.values())
+        overall_status = "PASS" if all_passed else "FAIL"
+        self.log(f"    Overall proxy validation: {overall_status}", overall_status)
+        
+        return {"simple_proxy_validation": {
+            "status": overall_status,
+            "message": f"Simple proxy validation {'completed successfully' if all_passed else 'failed'}",
+            "details": results
+        }}
+    
     def run_single_test(self, test_name: str) -> Dict[str, Any]:
         """Run a single test by name."""
         if test_name not in self.available_tests:
@@ -400,7 +486,7 @@ if __name__ == "__main__":
     
     def run_all_tests(self) -> Dict[str, Any]:
         """Run all MCP protocol tests."""
-        self.log(f"🚀 Starting MCP Protocol Test Suite (mode: {self.mode})")
+        self.log(f"🚀 Starting MCP Protocol Test Suite (target: {self.target})")
         self.log("=" * 50)
         
         start_time = time.time()
@@ -414,12 +500,22 @@ if __name__ == "__main__":
             if not self.start_mcp_server():
                 return {"error": "Failed to start MCP server"}
             
-            # Run tests in order
-            all_results.update(self.test_server_initialization())
-            all_results.update(self.test_list_tools())
-            all_results.update(self.test_file_operations())
-            all_results.update(self.test_system_operations())
-            all_results.update(self.test_code_analysis())
+            # Run tests based on mode
+            if self.simple_mode and self.target == "proxy":
+                # Simple proxy validation only
+                self.log("🎯 Running simple proxy validation...")
+                all_results.update(self.test_simple_proxy_validation())
+            else:
+                # Full test suite
+                all_results.update(self.test_server_initialization())
+                all_results.update(self.test_list_tools())
+                all_results.update(self.test_file_operations())
+                all_results.update(self.test_system_operations())
+                all_results.update(self.test_code_analysis())
+                
+                # Add proxy validation for proxy target
+                if self.target == "proxy":
+                    all_results.update(self.test_simple_proxy_validation())
             
         except Exception as e:
             self.log(f"Test execution error: {e}", "ERROR")
@@ -439,7 +535,7 @@ if __name__ == "__main__":
         failed_tests = total_tests - passed_tests
         
         self.log("=" * 50)
-        self.log(f"🏁 MCP Protocol Test Summary (mode: {self.mode})")
+        self.log(f"🏁 MCP Protocol Test Summary (target: {self.target})")
         self.log(f"📊 Total Tests: {total_tests}")
         self.log(f"✅ Passed: {passed_tests}")
         self.log(f"❌ Failed: {failed_tests}")
@@ -456,7 +552,7 @@ if __name__ == "__main__":
             "passed_tests": passed_tests,
             "failed_tests": failed_tests,
             "duration": duration,
-            "mode": self.mode,
+            "target": self.target,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -468,8 +564,10 @@ def main():
     parser = argparse.ArgumentParser(description="MCP Protocol Test Suite")
     parser.add_argument("--verbose", "-v", action="store_true", 
                        help="Enable verbose output")
-    parser.add_argument("--mode", choices=["direct", "proxy"], default="direct",
-                       help="Test mode: direct server or through proxy")
+    parser.add_argument("--target", choices=["direct", "proxy"], default="direct",
+                       help="Test target: direct server or through proxy")
+    parser.add_argument("--simple", action="store_true",
+                       help="Run simple proxy validation")
     parser.add_argument("--test", help="Run specific test by name")
     parser.add_argument("--server-path", default="mcp_server.py",
                        help="Path to MCP server script")
@@ -481,8 +579,9 @@ def main():
     # Create tester instance
     tester = MCPProtocolTester(
         verbose=args.verbose, 
-        mode=args.mode,
-        server_path=args.server_path
+        target=args.target,
+        server_path=args.server_path,
+        simple_mode=args.simple
     )
     
     # List tests if requested

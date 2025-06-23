@@ -481,21 +481,21 @@ class ServiceManager:
             debounce_delay=2.0
         )
         
-        # MCP Testing Proxy Configuration
+        # MCP Proxy Configuration (STDIO Mode for Claude Desktop)
         mcp_proxy_config = ServiceConfig(
             name="mcp_proxy",
             service_type=ServiceType.MCP_TESTING_PROXY,
             implementation=ImplementationType.PYTHON,
-            command=[sys.executable, "mcp_testing_proxy.py", "--host", "127.0.0.1", "--port", "8001"],
+            command=[sys.executable, "mcp_proxy.py", "--stdio", "--backend-url", "http://localhost:8000/mcp"],
             working_dir="packages/mcp-server",
-            port=8001,
-            log_file="mcp_testing_proxy.log",
+            port=8001,  # Not used in STDIO mode, but kept for compatibility
+            log_file="mcp_proxy.log",
             env_vars={"PYTHONPATH": str(self.base_dir)},
             # File watching configuration - specific to proxy files only
-            watch_patterns=["packages/mcp-server/mcp_testing_proxy.py"],
+            watch_patterns=["packages/mcp-server/mcp_proxy.py"],
             watch_dirs=[],  # Don't watch whole directories to avoid conflicts
             ignore_patterns=["*.log", "__pycache__/*", "*.pyc", "chrome-debug-profile/*"],
-            validation_command=[sys.executable, "-m", "py_compile", "packages/mcp-server/mcp_testing_proxy.py"],
+            validation_command=[sys.executable, "-m", "py_compile", "packages/mcp-server/mcp_proxy.py"],
             validation_port=8003,
             restart_delay=3.0,
             debounce_delay=2.0
@@ -620,7 +620,7 @@ class ServiceManager:
             # File watching configuration - watch for MCP server and tester changes
             watch_patterns=[
                 "packages/mcp-server/mcp_server.py", 
-                "packages/mcp-server/mcp_testing_proxy.py",
+                "packages/mcp-server/mcp_proxy.py",
                 "packages/mcp-server/mcp_protocol_tester.py"
             ],
             watch_dirs=[],  # Don't watch whole directories
@@ -703,7 +703,7 @@ class ServiceManager:
                     if "mcp_dashboard.py" in cmdline_str:
                         return True, proc.info['pid']
                 elif service_name == "mcp_proxy":
-                    if "mcp_testing_proxy.py" in cmdline_str:
+                    if "mcp_proxy.py" in cmdline_str:
                         return True, proc.info['pid']
                 elif service_name == "mcp_tester":
                     if "mcp_protocol_tester.py" in cmdline_str:
