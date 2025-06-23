@@ -4,6 +4,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+package-lock.json
 
 # Plasmo build outputs
 build/
@@ -126,3 +127,10 @@ foo.txt
 hello_world.py
 *.backup
 .venv/
+
+# MCP shim logs (will be regenerated)
+mcp_shim.log
+
+# Development artifacts
+test_output.log
+.sesskey

@@ -3,3 +3,178 @@ description:
 globs:
 alwaysApply: false
 ---
+# AI Authorship Standards
+
+## Mandatory AI Attribution
+
+All files created by AI instances must include authorship information in the first comment block:
+
+### File Header Template
+```typescript
+/**
+ * [File Purpose/Title]
+ * =====================
+ * 
+ * Created by: [AI Instance Name] (e.g., Claude-Sonnet-4, ChatGPT-4, Gemini-Pro)
+ * Date: [YYYY-MM-DD]
+ * Session: [Brief session identifier if applicable]
+ * Purpose: [Brief description of why file was created]
+ * 
+ * [Additional file-specific documentation]
+ */
+```
+
+### Language-Specific Headers
+
+**Python Files:**
+```python
+"""
+[File Purpose/Title]
+===================
+
+Created by: [AI Instance Name]
+Date: [YYYY-MM-DD]
+Purpose: [Brief description]
+
+[Additional documentation]
+"""
+```
+
+**Shell Scripts:**
+```bash
+#!/bin/bash
+#
+# [File Purpose/Title]
+# ===================
+#
+# Created by: [AI Instance Name]
+# Date: [YYYY-MM-DD]
+# Purpose: [Brief description]
+#
+```
+
+**Markdown Files:**
+```markdown
+<!-- 
+File: [filename]
+Created by: [AI Instance Name]
+Date: [YYYY-MM-DD]
+Purpose: [Brief description]
+-->
+
+# [File Title]
+```
+
+**JSON/Config Files:**
+```json
+{
+  "_metadata": {
+    "created_by": "[AI Instance Name]",
+    "date": "[YYYY-MM-DD]",
+    "purpose": "[Brief description]"
+  },
+  // ... actual config
+}
+```
+
+## Attribution Requirements
+
+### Mandatory Information
+- **AI Instance Name**: Specific model and version (e.g., "Claude-3.5-Sonnet", "GPT-4-Turbo")
+- **Date**: ISO format (YYYY-MM-DD)
+- **Purpose**: Brief explanation of why the file was created
+
+### Optional Information
+- **Session ID**: For tracking related files from same session
+- **Human Collaborator**: If created in collaboration with specific user
+- **Dependencies**: If file depends on other AI-created components
+- **Experimental Status**: If file is experimental/temporary
+
+## File Lifecycle Management
+
+### Experimental Files
+Files marked as experimental should include:
+```
+Status: EXPERIMENTAL - Safe to delete if not actively used
+Cleanup: [Date after which file can be safely removed]
+```
+
+### Temporary Files
+```
+Status: TEMPORARY - Auto-cleanup recommended
+Lifecycle: [Expected lifespan, e.g., "Session only", "Until feature complete"]
+```
+
+### Production Files
+```
+Status: PRODUCTION - Requires review before modification/deletion
+Dependencies: [List of systems/features that depend on this file]
+```
+
+## Multi-Agent Collaboration
+
+When multiple AI instances work on the same file:
+
+```
+/**
+ * [File Purpose]
+ * ==============
+ * 
+ * Original: [First AI Instance] ([Date])
+ * Modified: [Second AI Instance] ([Date]) - [What was changed]
+ * Modified: [Third AI Instance] ([Date]) - [What was changed]
+ * 
+ * Collaboration Notes:
+ * - [Any important notes about the collaboration]
+ */
+```
+
+## Enforcement
+
+### Pre-commit Validation
+- All new files must include AI authorship headers
+- Automated checks should validate header format
+- Missing headers should trigger warnings
+
+### Review Process
+- Human reviewers should verify AI attribution accuracy
+- Disputed authorship should be resolved through git history
+- Anonymous AI contributions should be marked as such
+
+### Cleanup Guidelines
+- Only remove files you personally created or have explicit permission
+- Check git history and authorship headers before deletion
+- When in doubt, ask the original creator or team lead
+
+## Examples
+
+### Good Attribution
+```python
+"""
+MCP Server Startup Wrapper
+==========================
+
+Created by: Claude-3.5-Sonnet
+Date: 2024-12-20
+Purpose: Ensure MCP server starts with correct working directory and environment
+Status: PRODUCTION - Core functionality for Claude Desktop integration
+
+This wrapper guarantees proper MCP server initialization regardless of how
+Claude Desktop launches the process.
+"""
+```
+
+### Poor Attribution
+```python
+# Some utility file
+# Created by AI
+```
+
+## Benefits
+
+1. **Clear Ownership**: Know which AI created what
+2. **Safe Cleanup**: Only remove files you created
+3. **Collaboration Tracking**: Understand multi-agent workflows
+4. **Debugging**: Trace issues to specific AI instances
+5. **Learning**: Analyze AI coding patterns and quality
+6. **Accountability**: Maintain audit trail for AI contributions
