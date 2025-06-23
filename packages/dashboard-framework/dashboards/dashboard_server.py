@@ -19,6 +19,10 @@ from fasthtml.fastapp import fast_app
 import uvicorn
 
 from .dashboard_base import DashboardBase, DashboardComponent, COMMON_HEAD
+import sys
+from pathlib import Path
+# Add shared python common to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared" / "python-common"))
 from services.service_base import ServiceOrchestrator
 
 
@@ -167,6 +171,10 @@ function controlService(name, action) {
             dashboard = self.dashboards[service_name]
             return dashboard.render_full_dashboard()
 
+        @rt("/health")
+        async def health_check(request=None):
+            return {"status": "ok", "message": "Dashboard server is running"}
+        
         @rt("/api/services")
         async def svc_api(request=None):
             return await self.orchestrator.get_all_service_status()

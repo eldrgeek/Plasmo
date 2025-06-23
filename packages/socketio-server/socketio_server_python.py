@@ -108,8 +108,7 @@ socket_app = socketio.ASGIApp(sio, app)
 @app.on_event("startup")
 async def startup_event():
     """Initialize background tasks when server starts"""
-    logger.info("🔄 Starting background cleanup task...")
-    asyncio.create_task(cleanup_inactive_peers())
+    logger.info("🔄 Server startup complete - background tasks will be managed by event loop")
 
 # Enhanced WebRTC Room Management Functions
 def create_room_if_not_exists(room_name: str) -> Dict:
@@ -1288,3 +1287,4 @@ def main():
     )
 
 if __name__ == "__main__":
+    main()

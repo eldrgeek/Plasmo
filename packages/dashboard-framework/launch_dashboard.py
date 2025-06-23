@@ -11,8 +11,10 @@ from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
+# Add shared python common to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "shared" / "python-common"))
 
-from dashboards.dashboard_server import dashboard_server
+from dashboards.dashboard_server import DashboardServer
 from dashboards.socketio_dashboard import SocketIODashboard
 from dashboards.mcp_dashboard import MCPDashboard
 from dashboards.plasmo_dashboard import PlasmoDashboard
@@ -30,7 +32,7 @@ def setup_logging():
     )
 
 
-def register_all_dashboards():
+def register_all_dashboards(dashboard_server):
     """Register all service dashboards"""
     
     # Register Socket.IO dashboard
@@ -70,15 +72,18 @@ def main():
     logs_dir = Path("logs")
     logs_dir.mkdir(exist_ok=True)
     
+    # Create dashboard server on port 8080
+    dashboard_server = DashboardServer(port=8080)
+    
     # Register all dashboards
-    register_all_dashboards()
+    register_all_dashboards(dashboard_server)
     
     # Start the dashboard server
-    print(f"📊 Dashboard server starting on http://localhost:8000")
-    print(f"🎛️  Master Control: http://localhost:8000/master")
-    print(f"🔌 Socket.IO Dashboard: http://localhost:8000/socketio")
-    print(f"🤖 MCP Server Dashboard: http://localhost:8000/mcp")
-    print(f"⚡ Plasmo Dev Dashboard: http://localhost:8000/plasmo")
+    print(f"📊 Dashboard server starting on http://localhost:8080")
+    print(f"🎛️  Master Control: http://localhost:8080/master")
+    print(f"🔌 Socket.IO Dashboard: http://localhost:8080/socketio")
+    print(f"🤖 MCP Server Dashboard: http://localhost:8080/mcp")
+    print(f"⚡ Plasmo Dev Dashboard: http://localhost:8080/plasmo")
     print(f"")
     print(f"Press Ctrl+C to stop the server")
     
