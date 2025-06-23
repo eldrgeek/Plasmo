@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-MCP Testing Shim - FastMCP Proxy Edition
-========================================
+MCP Testing Proxy - FastMCP Proxy Edition
+=========================================
 
 A lightweight development proxy using FastMCP's built-in proxy capabilities.
-This shim provides a stable connection endpoint for Claude Desktop while your
+This proxy provides a stable connection endpoint for Claude Desktop while your
 actual development server can restart behind it without breaking the connection.
 
 Features:
@@ -15,9 +15,9 @@ Features:
 - Simple, clean implementation
 
 Usage:
-1. Configure Claude Desktop to connect to this shim (port 8001)
+1. Configure Claude Desktop to connect to this proxy (port 8001)
 2. Start your development server on port 8000
-3. This shim proxies all requests to your dev server
+3. This proxy forwards all requests to your dev server
 4. Restart your dev server anytime - Claude Desktop stays connected
 
 Author: Claude AI Assistant
@@ -45,39 +45,39 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('mcp_shim.log'),
+        logging.FileHandler('mcp_proxy.log'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # Configuration
-SHIM_PORT = 8001  # Port for Claude Desktop to connect to
+PROXY_PORT = 8001  # Port for Claude Desktop to connect to
 DEV_SERVER_PORT = 8000  # Port of your development server
 DEV_SERVER_HOST = "127.0.0.1"
 HEALTH_CHECK_INTERVAL = 5.0  # Seconds between health checks
 
 @dataclass
-class ShimStats:
-    """Statistics about the shim's operation."""
+class ProxyStats:
+    """Statistics about the proxy's operation."""
     uptime_start: float
     dev_server_connections: int = 0
     dev_server_disconnections: int = 0
     last_dev_server_contact: Optional[float] = None
     proxy_restarts: int = 0
 
-class MCPDevelopmentShim:
+class MCPDevelopmentProxy:
     """
-    MCP Development Shim using FastMCP's native proxy capabilities.
+    MCP Development Proxy using FastMCP's native proxy capabilities.
     
-    This shim creates a FastMCP proxy server that forwards all requests to your
+    This proxy creates a FastMCP proxy server that forwards all requests to your
     development server, providing a stable endpoint for Claude Desktop.
     """
     
     def __init__(self, stdio_mode: bool = False):
         self.dev_server_url = f"http://{DEV_SERVER_HOST}:{DEV_SERVER_PORT}"
         self.dev_server_connected = False
-        self.stats = ShimStats(uptime_start=time.time())
+        self.stats = ProxyStats(uptime_start=time.time())
         self._shutdown_event = asyncio.Event()
         self._health_check_task: Optional[asyncio.Task] = None
         self.stdio_mode = stdio_mode
@@ -97,12 +97,12 @@ class MCPDevelopmentShim:
             # Create a proxy server using FastMCP's built-in proxy functionality
             self.proxy_server = FastMCP.as_proxy(
                 self.backend_client,
-                name="MCP Development Shim v2.0",
+                name="MCP Development Proxy v2.0",
                 instructions="Development proxy for stable Claude Desktop connection during server restarts."
             )
             
-            # Add shim-specific monitoring tools
-            self._add_shim_tools()
+            # Add proxy-specific monitoring tools
+            self._add_proxy_tools()
             
             logger.info("✅ FastMCP proxy server initialized")
             
@@ -113,7 +113,7 @@ class MCPDevelopmentShim:
     def _create_fallback_server(self) -> FastMCP:
         """Create a fallback server when the main dev server is not available."""
         fallback = FastMCP(
-            name="MCP Development Shim (Fallback Mode)",
+            name="MCP Development Proxy (Fallback Mode)",
             instructions="Development server proxy - backend currently unavailable."
         )
         
@@ -123,31 +123,31 @@ class MCPDevelopmentShim:
             return {
                 "status": "disconnected",
                 "dev_server_url": self.dev_server_url,
-                "message": "Development server is not available. Start your dev server and restart the shim.",
+                "message": "Development server is not available. Start your dev server and restart the proxy.",
                 "suggestion": f"Start your development server on {self.dev_server_url} and use force_reconnect()"
             }
         
-        # Add the common shim tools
-        self._add_shim_tools_to_server(fallback)
+        # Add the common proxy tools
+        self._add_proxy_tools_to_server(fallback)
         
         return fallback
     
-    def _add_shim_tools(self):
-        """Add shim-specific tools to the proxy server."""
+    def _add_proxy_tools(self):
+        """Add proxy-specific tools to the proxy server."""
         if self.proxy_server:
-            self._add_shim_tools_to_server(self.proxy_server)
+            self._add_proxy_tools_to_server(self.proxy_server)
     
-    def _add_shim_tools_to_server(self, server: FastMCP):
-        """Add shim monitoring tools to a FastMCP server."""
+    def _add_proxy_tools_to_server(self, server: FastMCP):
+        """Add proxy monitoring tools to a FastMCP server."""
         
         @server.tool()
-        def shim_status() -> Dict[str, Any]:
-            """Get development shim status and statistics."""
+        def proxy_status() -> Dict[str, Any]:
+            """Get development proxy status and statistics."""
             current_time = time.time()
             uptime = current_time - self.stats.uptime_start
             
             return {
-                "shim_info": {
+                "proxy_info": {
                     "version": "2.0.0 (FastMCP Proxy Edition)",
                     "uptime_seconds": round(uptime, 1),
                     "uptime_formatted": f"{int(uptime // 3600)}h {int((uptime % 3600) // 60)}m {int(uptime % 60)}s",
@@ -209,12 +209,12 @@ class MCPDevelopmentShim:
             # Create new proxy server
             self.proxy_server = FastMCP.as_proxy(
                 self.backend_client,
-                name="MCP Development Shim v2.0",
+                name="MCP Development Proxy v2.0",
                 instructions="Development proxy for stable Claude Desktop connection during server restarts."
             )
             
-            # Add shim tools
-            self._add_shim_tools()
+            # Add proxy tools
+            self._add_proxy_tools()
             
             self.dev_server_connected = True
             self.stats.dev_server_connections += 1
@@ -230,10 +230,10 @@ class MCPDevelopmentShim:
             # Fall back to disconnected server
             self.proxy_server = self._create_fallback_server()
     
-    async def start(self, host: str = "127.0.0.1", port: int = SHIM_PORT):
-        """Start the shim proxy server."""
+    async def start(self, host: str = "127.0.0.1", port: int = PROXY_PORT):
+        """Start the proxy server."""
         if not self.stdio_mode:
-            logger.info(f"🚀 Starting MCP Development Shim v2.0 (FastMCP Proxy Edition)")
+            logger.info(f"🚀 Starting MCP Development Proxy v2.0 (FastMCP Proxy Edition)")
             logger.info(f"📡 Proxy listening on {host}:{port}")
             logger.info(f"🎯 Backend server: {self.dev_server_url}")
             logger.info(f"📋 Claude Desktop should connect to: http://{host}:{port}/mcp")
@@ -309,9 +309,9 @@ class MCPDevelopmentShim:
                 await asyncio.sleep(HEALTH_CHECK_INTERVAL)
     
     async def shutdown(self):
-        """Shut down the shim gracefully."""
+        """Shut down the proxy gracefully."""
         if not self.stdio_mode:
-            logger.info("🛑 Shutting down MCP Development Shim...")
+            logger.info("🛑 Shutting down MCP Development Proxy...")
         
         self._shutdown_event.set()
         
@@ -329,30 +329,30 @@ class MCPDevelopmentShim:
                 pass
         
         if not self.stdio_mode:
-            logger.info("✅ MCP Development Shim shut down gracefully")
+            logger.info("✅ MCP Development Proxy shut down gracefully")
 
 async def main():
-    """Main entry point for the MCP Development Shim."""
-    parser = argparse.ArgumentParser(description="MCP Development Shim v2.0 (FastMCP Proxy Edition)")
+    """Main entry point for the MCP Development Proxy."""
+    parser = argparse.ArgumentParser(description="MCP Development Proxy v2.0 (FastMCP Proxy Edition)")
     parser.add_argument("--stdio", action="store_true", help="Use STDIO transport for Claude Desktop")
-    parser.add_argument("--port", type=int, default=SHIM_PORT, help="Server port (HTTP mode only)")
+    parser.add_argument("--port", type=int, default=PROXY_PORT, help="Server port (HTTP mode only)")
     parser.add_argument("--host", default="127.0.0.1", help="Server host (HTTP mode only)")
     
     args = parser.parse_args()
     
-    shim = MCPDevelopmentShim(stdio_mode=args.stdio)
+    proxy = MCPDevelopmentProxy(stdio_mode=args.stdio)
     
     # Set up signal handlers
     def signal_handler(sig, frame):
         if not args.stdio:
             logger.info("📨 Received shutdown signal")
-        asyncio.create_task(shim.shutdown())
+        asyncio.create_task(proxy.shutdown())
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        await shim.start(host=args.host, port=args.port)
+        await proxy.start(host=args.host, port=args.port)
     except KeyboardInterrupt:
         if not args.stdio:
             logger.info("⏸️  Interrupted by user")
@@ -360,7 +360,7 @@ async def main():
         logger.error(f"❌ Fatal error: {e}")
         raise
     finally:
-        await shim.shutdown()
+        await proxy.shutdown()
 
 if __name__ == "__main__":
     asyncio.run(main())

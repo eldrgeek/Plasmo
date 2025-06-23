@@ -1,8 +1,8 @@
-# MCP Development Shim v2.0 - Complete FastMCP Proxy Edition
+# MCP Development Proxy v2.0 - Complete FastMCP Proxy Edition
 
 ## Major Update Complete ✅
 
-The MCP Development Shim has been **completely rewritten** using FastMCP's built-in proxy capabilities, resulting in a dramatically simplified and more reliable implementation.
+The MCP Development Proxy has been **completely rewritten** using FastMCP's built-in proxy capabilities, resulting in a dramatically simplified and more reliable implementation.
 
 ## What Changed
 
@@ -19,7 +19,7 @@ The MCP Development Shim has been **completely rewritten** using FastMCP's built
 - ❌ `setup_mcp_testing.sh` - Setup script (FastMCP handles setup)
 - ❌ `setup_mcp_testing_executable.sh` - Executable setup (not needed)
 - ❌ `mcp_testing_dashboard.py` - Custom dashboard (replaced by unified dashboard)
-- ❌ `mcp_shim.log` - Old log files (will be regenerated)
+- ❌ `mcp_proxy.log` - Old log files (will be regenerated)
 - ❌ `mcp.log` - Old log files
 - ❌ `MIGRATION_COMPLETE.md` - Migration documentation (outdated)
 - ❌ `SHELL_TO_PYTHON_MIGRATION.md` - Shell migration docs (outdated)
@@ -30,16 +30,16 @@ The MCP Development Shim has been **completely rewritten** using FastMCP's built
 - ❌ `test_shim_parameters.py` - Parameter test for old shim implementation
 - ❌ `ARCHITECTURAL_IMPROVEMENTS_SUMMARY.md` - Old service manager docs
 - ❌ `test_output.log` - Temporary test artifacts
-- ❌ `mcp_shim.log` - Regenerated logs
+- ❌ `mcp_proxy.log` - Regenerated logs
 
 ### ✅ Updated .gitignore
 - ➕ Added `package-lock.json` to prevent tracking generated files
-- ➕ Added `mcp_shim.log` to ignore regenerated logs
+- ➕ Added `mcp_proxy.log` to ignore regenerated logs
 - ➕ Added `test_output.log` and `.sesskey` for development artifacts
 
 ### ✅ Files Updated
-- 📝 `SHIM_STATUS.md` - Updated to reflect FastMCP proxy implementation
-- 📝 `generate_mcp_config.py` - Updated to reference new shim architecture
+- 📝 `PROXY_STATUS.md` - Updated to reflect FastMCP proxy implementation
+- 📝 `generate_mcp_config.py` - Updated to reference new proxy architecture
 - 📝 `COMPLETE_FIX_SUMMARY.md` - This file, documenting all changes
 
 ## Key Improvements in v2.0
@@ -47,7 +47,7 @@ The MCP Development Shim has been **completely rewritten** using FastMCP's built
 ### 🚀 **Simplified Architecture**:
 ```python
 # OLD (500+ lines): Custom HTTP proxy + JSON-RPC handling + Request queuing
-class MCPTestingShim:
+class MCPTestingProxy:
     def __init__(self):
         self.request_queue = asyncio.Queue()
         self.response_futures = {}
@@ -78,14 +78,14 @@ async def create_proxy():
 ```
 packages/mcp-server/
 ├── mcp_server.py              # Main development server
-├── mcp_testing_shim.py        # NEW: FastMCP proxy implementation  
+├── mcp_testing_proxy.py       # NEW: FastMCP proxy implementation  
 ├── requirements.txt           # Dependencies
 ├── start_mcp.sh              # Development server startup
 ├── start_mcp_stdio.sh        # STDIO mode startup
 ├── start_mcp_auto_restart.sh # Auto-restart wrapper
 ├── ensure_mcp_running.sh     # Monitoring script
 ├── generate_mcp_config.py    # Configuration generator
-├── SHIM_STATUS.md            # Status documentation
+├── PROXY_STATUS.md           # Status documentation
 ├── COMPLETE_FIX_SUMMARY.md   # This file
 └── CHANGELOG.md              # Version history
 ```
@@ -109,7 +109,7 @@ python mcp_server.py --stdio
 ```bash
 # Start the FastMCP proxy (connects to Claude Desktop)
 cd packages/mcp-server  
-python mcp_testing_shim.py --stdio
+python mcp_testing_proxy.py --stdio
 ```
 
 ### 3. **Claude Desktop Configuration**:
@@ -168,7 +168,7 @@ The FastMCP proxy foundation enables:
 
 **Status: PRODUCTION READY** ✅
 
-The MCP Development Shim v2.0 represents a complete architectural evolution from a custom, complex proxy implementation to a clean, reliable FastMCP-based solution. The system is now:
+The MCP Development Proxy v2.0 represents a complete architectural evolution from a custom, complex proxy implementation to a clean, reliable FastMCP-based solution. The system is now:
 
 - **🎯 Stable**: No more custom proxy bugs or edge cases
 - **⚡ Fast**: Optimized proxy layer with minimal overhead  

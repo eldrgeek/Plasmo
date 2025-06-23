@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 class ServiceType(Enum):
     SOCKETIO = "socketio"
     MCP_SERVER = "mcp_server"
-    MCP_TESTING_SHIM = "mcp_testing_shim"  
+    MCP_TESTING_PROXY = "mcp_testing_proxy"  
     PLASMO_DEV = "plasmo_dev"
     CONTINUOUS_TESTS = "continuous_tests"
     DASHBOARD = "dashboard"
@@ -475,26 +475,26 @@ class ServiceManager:
                 "logs/*", "*.backup.*"
             ],
             validation_command=[sys.executable, "-m", "py_compile", "packages/mcp-server/mcp_server.py"],
-            validation_port=8002,  # Changed from 8001 to avoid conflict with shim
+            validation_port=8002,  # Changed from 8001 to avoid conflict with proxy
             restart_delay=4.0,
             debounce_delay=2.0
         )
         
-        # MCP Testing Shim Configuration
-        mcp_shim_config = ServiceConfig(
-            name="mcp_shim",
-            service_type=ServiceType.MCP_TESTING_SHIM,
+        # MCP Testing Proxy Configuration
+        mcp_proxy_config = ServiceConfig(
+            name="mcp_proxy",
+            service_type=ServiceType.MCP_TESTING_PROXY,
             implementation=ImplementationType.PYTHON,
-            command=[sys.executable, "mcp_testing_shim.py", "--host", "127.0.0.1", "--port", "8001"],
+            command=[sys.executable, "mcp_testing_proxy.py", "--host", "127.0.0.1", "--port", "8001"],
             working_dir="packages/mcp-server",
             port=8001,
-            log_file="mcp_testing_shim.log",
+            log_file="mcp_testing_proxy.log",
             env_vars={"PYTHONPATH": str(self.base_dir)},
-            # File watching configuration - specific to shim files only
-            watch_patterns=["packages/mcp-server/mcp_testing_shim.py", "packages/mcp-server/start_mcp_shim.py"],
+            # File watching configuration - specific to proxy files only
+            watch_patterns=["packages/mcp-server/mcp_testing_proxy.py"],
             watch_dirs=[],  # Don't watch whole directories to avoid conflicts
             ignore_patterns=["*.log", "__pycache__/*", "*.pyc", "chrome-debug-profile/*"],
-            validation_command=[sys.executable, "-m", "py_compile", "packages/mcp-server/mcp_testing_shim.py"],
+            validation_command=[sys.executable, "-m", "py_compile", "packages/mcp-server/mcp_testing_proxy.py"],
             validation_port=8003,
             restart_delay=3.0,
             debounce_delay=2.0
@@ -610,7 +610,7 @@ class ServiceManager:
         self.service_configs = {
             "socketio": socketio_config,
             "mcp": mcp_config,
-            "mcp_shim": mcp_shim_config,
+            "mcp_proxy": mcp_proxy_config,
             "plasmo": plasmo_config,
             "tests": tests_config,
             "dashboard": dashboard_config,
@@ -677,8 +677,8 @@ class ServiceManager:
                 elif service_name == "mcp_dashboard":
                     if "mcp_dashboard.py" in cmdline_str:
                         return True, proc.info['pid']
-                elif service_name == "mcp_shim":
-                    if "mcp_testing_shim.py" in cmdline_str:
+                elif service_name == "mcp_proxy":
+                    if "mcp_testing_proxy.py" in cmdline_str:
                         return True, proc.info['pid']
                 elif service_name == "chrome_debug":
                     if ("chrome-debug-profile" in cmdline_str and 
@@ -720,7 +720,7 @@ class ServiceManager:
             return proc.poll() is None
             
         # For MCP services, just check if process is running after a short wait
-        if config.service_type in [ServiceType.MCP_SERVER, ServiceType.MCP_TESTING_SHIM]:
+        if config.service_type in [ServiceType.MCP_SERVER, ServiceType.MCP_TESTING_PROXY]:
             await asyncio.sleep(2)  # Give MCP services time to start
             return proc.poll() is None
             

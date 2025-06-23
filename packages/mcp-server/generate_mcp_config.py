@@ -4,7 +4,7 @@ MCP Testing Configuration Generator
 ==================================
 
 This script generates the correct configuration for Claude Desktop to use
-the MCP Development Shim v2.0 (FastMCP Proxy Edition), eliminating the need 
+the MCP Development Proxy v2.0 (FastMCP Proxy Edition), eliminating the need 
 to restart Claude Desktop during MCP server development.
 
 Author: Claude AI Assistant
@@ -39,19 +39,19 @@ def load_existing_config(config_path: Path) -> Dict[str, Any]:
             return {}
     return {}
 
-def create_shim_config(project_path: str) -> Dict[str, Any]:
-    """Create the FastMCP proxy shim configuration for Claude Desktop."""
-    shim_config = {
+def create_proxy_config(project_path: str) -> Dict[str, Any]:
+    """Create the FastMCP proxy configuration for Claude Desktop."""
+    proxy_config = {
         "command": "python3",
         "args": [
-            f"{project_path}/mcp_testing_shim.py",
+            f"{project_path}/mcp_testing_proxy.py",
             "--stdio"
         ],
         "cwd": project_path,
         "description": "FastMCP Development Proxy - Zero-downtime development"
     }
     
-    return shim_config
+    return proxy_config
 
 def backup_config(config_path: Path) -> Path:
     """Create a backup of the existing configuration."""
@@ -62,7 +62,7 @@ def backup_config(config_path: Path) -> Path:
         return backup_path
     return None
 
-def generate_config(project_path: str = None, server_name: str = "mcp-development-shim") -> Dict[str, Any]:
+def generate_config(project_path: str = None, server_name: str = "mcp-development-proxy") -> Dict[str, Any]:
     """Generate the complete Claude Desktop configuration."""
     
     if project_path is None:
@@ -75,9 +75,9 @@ def generate_config(project_path: str = None, server_name: str = "mcp-developmen
     if "mcpServers" not in existing_config:
         existing_config["mcpServers"] = {}
     
-    # Add or update the shim configuration
-    shim_config = create_shim_config(project_path)
-    existing_config["mcpServers"][server_name] = shim_config
+    # Add or update the proxy configuration
+    proxy_config = create_proxy_config(project_path)
+    existing_config["mcpServers"][server_name] = proxy_config
     
     return existing_config, config_path
 
@@ -120,22 +120,22 @@ def print_manual_instructions(config: Dict[str, Any], project_path: str):
     print("\n6. Start your development workflow:")
     print(f"   cd {project_path}")
     print("   python3 mcp_server.py --stdio            # Start development server")
-    print("   python3 mcp_testing_shim.py --stdio      # Start FastMCP proxy shim")
-    print("\n📊 Benefits of FastMCP Proxy Shim v2.0:")
+    print("   python3 mcp_testing_proxy.py --stdio      # Start FastMCP proxy")
+    print("\n📊 Benefits of FastMCP Proxy v2.0:")
     print("   ✅ All development server tools automatically available")
     print("   ✅ Zero configuration - works out of the box")
     print("   ✅ Restart dev server without restarting Claude Desktop")
     print("   ✅ Built-in connection recovery and error handling")
 
-def test_shim_setup(project_path: str) -> bool:
-    """Test if the FastMCP proxy shim setup is correct."""
-    shim_file = Path(project_path) / "mcp_testing_shim.py"
+def test_proxy_setup(project_path: str) -> bool:
+    """Test if the FastMCP proxy setup is correct."""
+    proxy_file = Path(project_path) / "mcp_testing_proxy.py"
     dev_server_file = Path(project_path) / "mcp_server.py"
     
     issues = []
     
-    if not shim_file.exists():
-        issues.append(f"❌ FastMCP proxy shim not found: {shim_file}")
+    if not proxy_file.exists():
+        issues.append(f"❌ FastMCP proxy not found: {proxy_file}")
     
     if not dev_server_file.exists():
         issues.append(f"❌ Development server not found: {dev_server_file}")
@@ -157,7 +157,7 @@ def test_shim_setup(project_path: str) -> bool:
         print("\n💡 To install FastMCP: pip install fastmcp")
         return False
     
-    print("\n✅ FastMCP proxy shim setup looks good!")
+    print("\n✅ FastMCP proxy setup looks good!")
     return True
 
 def main():
@@ -167,7 +167,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate FastMCP Development Proxy configuration")
     parser.add_argument("--project-path", "-p", 
                        help="Path to MCP project directory (default: current directory)")
-    parser.add_argument("--server-name", "-n", default="mcp-development-shim",
+    parser.add_argument("--server-name", "-n", default="mcp-development-proxy",
                        help="Name for the MCP server in configuration")
     parser.add_argument("--manual", "-m", action="store_true",
                        help="Show manual configuration instructions only")
@@ -189,7 +189,7 @@ def main():
     # Test setup if requested
     if args.test:
         print("\n🧪 Testing FastMCP proxy setup...")
-        test_shim_setup(project_path)
+        test_proxy_setup(project_path)
         return
     
     # Generate configuration
@@ -200,7 +200,7 @@ def main():
         return
     
     # Test setup before proceeding
-    if not test_shim_setup(project_path):
+    if not test_proxy_setup(project_path):
         print("\n❌ Setup issues found. Please fix them before generating configuration.")
         print("💡 Run with --manual to see manual setup instructions.")
         return
@@ -214,9 +214,9 @@ def main():
         print("2. Start your development server:")
         print(f"   cd {project_path}")
         print("   python3 mcp_server.py --stdio")
-        print("3. Start the FastMCP proxy shim:")
-        print("   python3 mcp_testing_shim.py --stdio")
-        print("4. Claude Desktop will connect to the shim, which proxies to your dev server")
+        print("3. Start the FastMCP proxy:")
+        print("   python3 mcp_testing_proxy.py --stdio")
+        print("4. Claude Desktop will connect to the proxy, which forwards to your dev server")
         print("\n✨ You can now restart your dev server anytime without breaking Claude Desktop!")
     else:
         print("\n❌ Failed to save configuration.")

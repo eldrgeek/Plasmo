@@ -128,8 +128,8 @@ hello_world.py
 *.backup
 .venv/
 
-# MCP shim logs (will be regenerated)
-mcp_shim.log
+# MCP proxy logs (will be regenerated)
+mcp_proxy.log
 
 # Development artifacts
 test_output.log
