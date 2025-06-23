@@ -52,9 +52,7 @@ class TestRunner:
             
         # Check for test files
         test_files = [
-            "test_mcp_server.py",
-            "test_dual_mode.py", 
-            "test_python_migration.py"
+            "test_mcp_server.py"
         ]
         
         missing_files = []

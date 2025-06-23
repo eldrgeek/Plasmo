@@ -188,7 +188,7 @@ add_file "AGENTS.md" "AI agents documentation"
 add_section "TEST FILES"
 
 echo "Adding test files..."
-add_file "test_dual_mode.py" "MCP dual mode testing"
+# test_dual_mode.py removed - functionality now in mcp_protocol_tester.py
 
 # Add Assets Information
 add_section "ASSETS AND BUILD INFORMATION"
