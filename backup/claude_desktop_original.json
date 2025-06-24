@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+        "stdioserver": {
+            "command": "python",
+            "args": [
+                "/Users/MikeWolf/Projects/Plasmo/packages/mcp-server/mcp_server.py",
+                "--stdio"
+            ],
+            "cwd": "/Users/MikeWolf/Projects/Plasmo",
+            "description": "Plasmo Stdio Development Assistant"
+        }
+    }
+}
