@@ -190,24 +190,18 @@ import socketio
 import sys
 import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
-yesh_clone_dir = os.path.join(os.path.dirname(current_dir), "YeshClone")
-if os.path.exists(yesh_clone_dir):
-    sys.path.append(yesh_clone_dir)
-    try:
-        from mcp_extension_claude_instances import (
-            launch_claude_instance_tool,
-            list_claude_instances_tool,
-            send_inter_instance_message_tool,
-            coordinate_claude_instances_tool
-        )
-        CLAUDE_INSTANCES_AVAILABLE = True
-        pass  # Claude instance management tools loaded (silent for stdio)
-    except ImportError as e:
-        CLAUDE_INSTANCES_AVAILABLE = False
-        pass  # Claude instance tools not available (silent for stdio)
-else:
+try:
+    from mcp_extension_claude_instances import (
+        launch_claude_instance_tool,
+        list_claude_instances_tool,
+        send_inter_instance_message_tool,
+        coordinate_claude_instances_tool
+    )
+    CLAUDE_INSTANCES_AVAILABLE = True
+    pass  # Claude instance management tools loaded (silent for stdio)
+except ImportError as e:
     CLAUDE_INSTANCES_AVAILABLE = False
-    pass  # YeshClone directory not found (silent for stdio)
+    pass  # Claude instance tools not available (silent for stdio)
 
 
 # Configure logging and suppress ALL output for stdio mode
