@@ -1636,7 +1636,7 @@ def run_tests(ctx, mode, test, verbose):
     """Run MCP protocol tests"""
     manager = ctx.obj['manager']
     
-    cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--mode", mode]
+    cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", f"--target={mode}"]
     
     if verbose:
         cmd.append("--verbose")
@@ -1674,7 +1674,7 @@ def test_server(ctx, target):
     
     mode = "direct" if target == "mcp" else "proxy"
     
-    cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--mode", mode, "--verbose"]
+    cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", f"--target={mode}", "--verbose"]
     
     manager.print_status(f"🧪 Testing {target.upper()} server (PID: {pid})", "info")
     
@@ -1715,7 +1715,7 @@ def compare_modes(ctx):
     # Run tests in both modes
     for mode in ['direct', 'proxy']:
         manager.print_status(f"🧪 Testing {mode} mode...", "info")
-        cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", "--mode", mode]
+        cmd = [sys.executable, "packages/mcp-server/mcp_protocol_tester.py", f"--target={mode}"]
         
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
