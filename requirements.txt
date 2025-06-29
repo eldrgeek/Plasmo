@@ -1,0 +1,26 @@
+# Core MCP server dependencies
+fastmcp>=2.6.1
+
+# Playwright for browser automation
+playwright>=1.40.0
+
+# Additional web automation dependencies
+aiohttp>=3.8.5
+websockets>=11.0.3
+requests>=2.28.0
+
+# Chrome Debug Protocol support (optional)
+pychrome>=0.2.3
+
+# Desktop automation and input monitoring
+pyautogui>=0.9.54
+pynput>=1.7.6
+
+# Utilities
+aiofiles>=23.2.1
+python-dotenv>=1.0.0
+pathlib>=1.0.1
+
+# Development and testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0 
