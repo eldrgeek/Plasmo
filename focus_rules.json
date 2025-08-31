@@ -1,0 +1,25 @@
+{
+  "max_off_task_minutes": 10,
+  "ignored_apps": [
+    "Finder",
+    "System Preferences",
+    "Activity Monitor"
+  ],
+  "distraction_apps": [
+    "Safari",
+    "Chrome",
+    "Firefox",
+    "Twitter",
+    "Discord",
+    "Slack"
+  ],
+  "work_apps": [
+    "Xcode",
+    "VSCode",
+    "Terminal",
+    "iTerm",
+    "Claude"
+  ],
+  "check_interval_seconds": 30,
+  "prompt_after_distraction_minutes": 5
+}

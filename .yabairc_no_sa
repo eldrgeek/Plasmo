@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+# ===================================================================
+# YABAI CONFIGURATION WITHOUT SCRIPTING ADDITION
+# ===================================================================
+# This config works without disabling SIP
+# Some features like space switching may be limited
+# ===================================================================
+
+# ===================================================================
+# GLOBAL SETTINGS
+# ===================================================================
+
+# Default layout - use bsp for better tiling
+yabai -m config layout bsp
+
+# Set default split ratio for new windows
+yabai -m config split_ratio 0.50
+
+# Set split type for new windows
+yabai -m config split_type auto
+
+# ===================================================================
+# WINDOW APPEARANCE
+# ===================================================================
+
+# Window borders
+yabai -m config window_border on
+yabai -m config window_border_width 4
+yabai -m config active_window_border_color 0xff775759
+yabai -m config normal_window_border_color 0xff353535
+
+# Window shadows
+yabai -m config window_shadow float
+
+# Window opacity
+yabai -m config window_opacity on
+yabai -m config active_window_opacity 1.0
+yabai -m config normal_window_opacity 0.9
+
+# ===================================================================
+# SPACE/DESKTOP SETTINGS
+# ===================================================================
+
+# Gaps between windows
+yabai -m config top_gap 8
+yabai -m config bottom_gap 8
+yabai -m config left_gap 8  
+yabai -m config right_gap 8
+yabai -m config window_gap 8
+
+# ===================================================================
+# MOUSE SETTINGS
+# ===================================================================
+
+# Mouse follows focus
+yabai -m config mouse_follows_focus off
+
+# Focus follows mouse  
+yabai -m config focus_follows_mouse off
+
+# Mouse interaction with windows
+yabai -m config mouse_modifier alt
+yabai -m config mouse_action1 move
+yabai -m config mouse_action2 resize
+
+# Mouse drop action
+yabai -m config mouse_drop_action swap
+
+# ===================================================================
+# WINDOW MANAGEMENT BEHAVIOR
+# ===================================================================
+
+# New window spawn location
+yabai -m config window_placement second_child
+
+# Auto balance windows
+yabai -m config auto_balance on
+
+# Window origin display
+yabai -m config window_origin_display default
+
+# ===================================================================
+# APPLICATION RULES (Keep apps floating that should float)
+# ===================================================================
+
+# System apps
+yabai -m rule --add app="^System Preferences$" manage=off
+yabai -m rule --add app="^System Settings$" manage=off
+yabai -m rule --add app="^Finder$" manage=off
+yabai -m rule --add app="^Calculator$" manage=off
+yabai -m rule --add app="^Activity Monitor$" manage=off
+
+# Utility apps
+yabai -m rule --add app="^1Password" manage=off
+yabai -m rule --add app="^CleanMyMac" manage=off
+
+# Dialog windows
+yabai -m rule --add title="^Preferences$" manage=off
+yabai -m rule --add title="^Settings$" manage=off
+
+echo "Yabai configuration (no scripting addition) loaded successfully"

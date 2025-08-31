@@ -1,0 +1,88 @@
+# ===================================================================
+# SIMPLIFIED SKHD CONFIG (Works without Scripting Addition)
+# ===================================================================
+# Focus on window management that works without advanced permissions
+# ===================================================================
+
+# ===================================================================
+# WINDOW FOCUS (These should work)
+# ===================================================================
+
+# Focus window in direction
+alt - h : /opt/homebrew/bin/yabai -m window --focus west
+alt - j : /opt/homebrew/bin/yabai -m window --focus south
+alt - k : /opt/homebrew/bin/yabai -m window --focus north
+alt - l : /opt/homebrew/bin/yabai -m window --focus right
+
+# Focus previous/next window
+alt - p : /opt/homebrew/bin/yabai -m window --focus prev
+alt - n : /opt/homebrew/bin/yabai -m window --focus next
+
+# ===================================================================
+# WINDOW MOVEMENT (These should work)
+# ===================================================================
+
+# Move window in direction
+shift + alt - h : /opt/homebrew/bin/yabai -m window --swap west
+shift + alt - j : /opt/homebrew/bin/yabai -m window --swap south
+shift + alt - k : /opt/homebrew/bin/yabai -m window --swap north
+shift + alt - l : /opt/homebrew/bin/yabai -m window --swap right
+
+# ===================================================================
+# WINDOW ACTIONS (These should work)
+# ===================================================================
+
+# Toggle window states
+alt - f : /opt/homebrew/bin/yabai -m window --toggle zoom-fullscreen
+alt - t : /opt/homebrew/bin/yabai -m window --toggle float
+alt - s : /opt/homebrew/bin/yabai -m window --toggle zoom-parent
+
+# Rotate and mirror (should work)
+alt - r : /opt/homebrew/bin/yabai -m space --rotate 90
+alt - y : /opt/homebrew/bin/yabai -m space --mirror y-axis
+alt - x : /opt/homebrew/bin/yabai -m space --mirror x-axis
+
+# Balance windows
+shift + alt - 0 : /opt/homebrew/bin/yabai -m space --balance
+
+# ===================================================================
+# LAYOUT MANAGEMENT (These should work)
+# ===================================================================
+
+# Toggle between layouts
+ctrl + alt - b : /opt/homebrew/bin/yabai -m space --layout bsp
+ctrl + alt - s : /opt/homebrew/bin/yabai -m space --layout stack
+ctrl + alt - f : /opt/homebrew/bin/yabai -m space --layout float
+
+# ===================================================================
+# SPACE SWITCHING (May not work without scripting addition)
+# ===================================================================
+# These might not work - they're here for when you install scripting addition
+
+# Switch to desktop (may require scripting addition)
+alt - 1 : /opt/homebrew/bin/yabai -m space --focus 1
+alt - 2 : /opt/homebrew/bin/yabai -m space --focus 2
+alt - 3 : /opt/homebrew/bin/yabai -m space --focus 3
+alt - 4 : /opt/homebrew/bin/yabai -m space --focus 4
+
+# Move window to desktop (may require scripting addition)
+shift + alt - 1 : /opt/homebrew/bin/yabai -m window --space 1
+shift + alt - 2 : /opt/homebrew/bin/yabai -m window --space 2
+shift + alt - 3 : /opt/homebrew/bin/yabai -m window --space 3
+shift + alt - 4 : /opt/homebrew/bin/yabai -m window --space 4
+
+# ===================================================================
+# APPLICATION SHORTCUTS
+# ===================================================================
+
+# Launch applications
+cmd - return : open -a "Terminal"
+cmd + shift - return : open -a "Cursor"
+
+# ===================================================================
+# SYSTEM CONTROLS
+# ===================================================================
+
+# Restart Yabai and SKHD
+shift + alt + cmd - r : /opt/homebrew/bin/yabai --restart-service
+shift + alt + cmd - s : /opt/homebrew/bin/skhd --reload
