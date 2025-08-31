@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 AI Capture</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .capture-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 30px;
+            width: 500px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .input-area {
+            margin-bottom: 25px;
+        }
+        
+        .textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.8);
+        }
+        
+        .textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: rgba(255, 255, 255, 1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-voice {
+            background: rgba(255, 99, 132, 0.1);
+            color: #e53e3e;
+            border: 2px solid rgba(255, 99, 132, 0.2);
+        }
+        
+        .btn-voice:hover {
+            background: rgba(255, 99, 132, 0.2);
+            transform: translateY(-1px);
+        }
+        
+        .btn-voice.recording {
+            background: rgba(255, 99, 132, 0.2);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .btn-secondary {
+            background: rgba(113, 128, 150, 0.1);
+            color: #718096;
+            border: 2px solid rgba(113, 128, 150, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(113, 128, 150, 0.2);
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .status {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #718096;
+            min-height: 20px;
+        }
+        
+        .success {
+            color: #38a169;
+        }
+        
+        .error {
+            color: #e53e3e;
+        }
+        
+        .processing {
+            color: #667eea;
+        }
+        
+        .hotkey-hint {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            font-size: 12px;
+            color: rgba(113, 128, 150, 0.7);
+            background: rgba(255, 255, 255, 0.5);
+            padding: 5px 10px;
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="capture-container">
+        <div class="header">
+            <div class="title">🎯 AI Capture</div>
+            <div class="subtitle">Tell your sidekick what's on your mind</div>
+        </div>
+        
+        <div class="input-area">
+            <textarea 
+                class="textarea" 
+                placeholder="What's on your mind? Type here or use voice..."
+                id="taskInput"
+                autofocus
+            ></textarea>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn btn-voice" id="voiceBtn">
+                🎤 Voice
+            </button>
+            <button class="btn btn-primary" id="sendBtn">
+                🤖 Send to Claude
+            </button>
+            <button class="btn btn-secondary" id="cancelBtn">
+                ❌ Cancel
+            </button>
+        </div>
+        
+        <div class="status" id="status"></div>
+    </div>
+    
+    <div class="hotkey-hint">
+        Press Cmd+Shift+T anywhere
+    </div>
+
+    <script>
+        const taskInput = document.getElementById('taskInput');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const status = document.getElementById('status');
+
+        // Auto-focus on load
+        taskInput.focus();
+
+        // Voice recognition
+        let recognition;
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                voiceBtn.classList.add('recording');
+                voiceBtn.innerHTML = '🎤 Listening...';
+                status.innerHTML = '🎤 Listening... speak now!';
+                status.className = 'status processing';
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                taskInput.value = transcript;
+                status.innerHTML = '✅ Voice captured!';
+                status.className = 'status success';
+            };
+
+            recognition.onend = () => {
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '🎤 Voice';
+                if (!status.innerHTML.includes('captured')) {
+                    status.innerHTML = '';
+                    status.className = 'status';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                voiceBtn.classList.remove('recording');
+                voiceBtn.innerHTML = '🎤 Voice';
+                status.innerHTML = '❌ Voice recognition failed';
+                status.className = 'status error';
+            };
+        }
+
+        // Event listeners
+        voiceBtn.addEventListener('click', () => {
+            if (recognition) {
+                recognition.start();
+            }
+        });
+
+        sendBtn.addEventListener('click', async () => {
+            const content = taskInput.value.trim();
+            if (!content) return;
+
+            status.innerHTML = '🤖 Processing with Claude...';
+            status.className = 'status processing';
+            sendBtn.disabled = true;
+
+            try {
+                // This would integrate with your Claude API
+                await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
+                
+                status.innerHTML = '✅ Task captured and organized!';
+                status.className = 'status success';
+                
+                // Close after success
+                setTimeout(() => {
+                    window.close();
+                }, 1500);
+                
+            } catch (error) {
+                status.innerHTML = '❌ Error processing task';
+                status.className = 'status error';
+                sendBtn.disabled = false;
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            window.close();
+        });
+
+        // Keyboard shortcuts
+        taskInput.addEventListener('keydown', (e) => {
+            if (e.metaKey && e.key === 'Enter') {
+                sendBtn.click();
+            }
+            if (e.key === 'Escape') {
+                cancelBtn.click();
+            }
+        });
+
+        // Auto-resize textarea
+        taskInput.addEventListener('input', () => {
+            taskInput.style.height = 'auto';
+            taskInput.style.height = Math.max(120, taskInput.scrollHeight) + 'px';
+        });
+    </script>
+</body>
+</html>

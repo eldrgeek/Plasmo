@@ -1,0 +1,14 @@
+[
+  {
+    "agent_id": "product_manager_agent_DiscordPlus Project_1752261000",
+    "role": "product_manager_agent",
+    "specialization": "DiscordPlus Project",
+    "status": "active",
+    "created_at": "2025-07-11 15:10:00",
+    "last_activity": "2025-07-11 15:10:00",
+    "template_file": "/Users/MikeWolf/Projects/Plasmo/agents/agent_templates/product_manager_agent.md",
+    "project_context": "New Discord enhancement project - needs full discovery and PRD creation",
+    "current_tasks": [],
+    "performance_score": 1.0
+  }
+]

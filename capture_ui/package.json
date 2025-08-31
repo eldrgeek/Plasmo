@@ -1,0 +1,19 @@
+{
+  "name": "instant-ai-capture",
+  "version": "1.0.0",
+  "description": "Beautiful instant AI task capture for Mike Wolf",
+  "main": "src-tauri/target/release/instant-ai-capture",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "setup": "npm install && cargo install tauri-cli",
+    "quick-setup": "npm create tauri-app@latest . --template vanilla-ts --name instant-ai-capture --before-dev-command 'npm run build' --before-build-command 'npm run build' --dev-path ../dist --dist-dir ../dist"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.5.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vite": "^4.0.0"
+  }
+}
