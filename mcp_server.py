@@ -562,6 +562,138 @@ async def close_browser() -> Dict[str, Any]:
 # MAIN SERVER EXECUTION
 # ================================
 
+# ================================
+# COMMAND EXECUTION TOOLS
+# ================================
+
+@mcp.tool()
+def execute_command(command: str, working_dir: str = None, timeout: int = 30) -> Dict[str, Any]:
+    """Execute shell command safely with output capture and security checks."""
+    
+    if working_dir is None:
+        working_dir = os.getcwd()
+    
+    # Security check - forbidden commands
+    forbidden_commands = {
+        'rm -rf', 'format', 'fdisk', 'dd', 'mkfs',
+        'shutdown', 'reboot', 'halt', 'poweroff',
+        'passwd', 'useradd', 'userdel', 'usermod'
+    }
+    
+    command_lower = command.lower()
+    for forbidden in forbidden_commands:
+        if forbidden in command_lower:
+            return {
+                "success": False,
+                "error": f"Forbidden command detected: {forbidden}",
+                "command": command,
+                "timestamp": time.time()
+            }
+    
+    try:
+        print(f"🚀 Executing: {command}")
+        print(f"📁 Working directory: {working_dir}")
+        
+        # Execute command
+        result = subprocess.run(
+            command,
+            shell=True,
+            cwd=working_dir,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        
+        response = {
+            "success": result.returncode == 0,
+            "returncode": result.returncode,
+            "command": command,
+            "working_directory": working_dir,
+            "stdout": result.stdout or "",
+            "stderr": result.stderr or "",
+            "timestamp": time.time()
+        }
+        
+        # Log the execution
+        status = "✅" if result.returncode == 0 else "❌"
+        print(f"{status} Command completed with return code: {result.returncode}")
+        
+        return response
+        
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "error": f"Command timed out after {timeout} seconds",
+            "command": command,
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "command": command,
+            "timestamp": time.time()
+        }
+
+@mcp.tool()
+def run_instant_capture() -> Dict[str, Any]:
+    """Start the beautiful instant AI capture system."""
+    
+    try:
+        script_path = "instant_capture_beautiful.py"
+        if not os.path.exists(script_path):
+            return {
+                "success": False,
+                "error": f"Instant capture script not found: {script_path}",
+                "suggestion": "Run the setup script first: ./setup_beautiful_capture.sh"
+            }
+        
+        # Launch the capture system in background
+        command = f"python3 {script_path}"
+        
+        # For background execution, we'll start it and return immediately
+        subprocess.Popen(
+            command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=os.getcwd()
+        )
+        
+        return {
+            "success": True,
+            "command": command,
+            "script_path": script_path,
+            "status": "🎯 Instant AI Capture system started in background!",
+            "usage": "Press Cmd+Shift+T anywhere to capture tasks",
+            "timestamp": time.time()
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to start instant capture: {str(e)}",
+            "timestamp": time.time()
+        }
+
+@mcp.tool()
+def install_package(package_name: str) -> Dict[str, Any]:
+    """Install Python package using pip3."""
+    
+    try:
+        result = execute_command(f"pip3 install {package_name}", timeout=120)
+        return {
+            **result,
+            "package_name": package_name,
+            "operation": "package_installation"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to install {package_name}: {str(e)}",
+            "timestamp": time.time()
+        }
+
 def main():
     parser = argparse.ArgumentParser(description="Cursor Playwright MCP Server")
     parser.add_argument("--stdio", action="store_true", help="Use STDIO transport for Cursor IDE")
