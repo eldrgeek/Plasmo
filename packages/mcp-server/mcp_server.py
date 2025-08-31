@@ -151,6 +151,9 @@ TESTING STATUS: ✅ 10/13 tests passing (76.9% success rate)
 - Security protections confirmed  
 - Unicode handling verified
 - Chrome integration available (when Chrome debug running)
+# Service orchestration imports
+import psutil
+import requests
 
 Authors: AI Assistant + User Feedback
 """
@@ -265,48 +268,7 @@ logger = logging.getLogger(__name__)
 # ASYNC SERVER STATE MANAGEMENT - NEW IMPROVEMENTS
 # ============================================================================
 
-class ServerState:
-    """Enhanced server state management with proper async cleanup."""
-    def __init__(self):
-        self.active_tasks = weakref.WeakSet()
-        self.chrome_instances = {}
-        self.connection_lock = asyncio.Lock()
-        self.cleanup_registered = False
-        self.console_logs = []
-        self.websocket_connections = {}
-    
-    async def add_task(self, task):
-        """Add a task to be tracked for cleanup."""
-        self.active_tasks.add(task)
-    
-    async def cleanup_all(self):
-        """Clean up all active resources."""
-        logger.info("Cleaning up server resources...")
-        
-        # Cancel all active tasks
-        tasks_to_cancel = list(self.active_tasks)
-        for task in tasks_to_cancel:
-            if not task.done():
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    logger.error(f"Error during task cleanup: {e}")
-        
-        # Close WebSocket connections
-        for ws in list(self.websocket_connections.values()):
-            try:
-                if hasattr(ws, 'close'):
-                    await ws.close()
-            except Exception as e:
-                logger.error(f"Error closing WebSocket: {e}")
-        
-        logger.info(f"Cleaned up {len(tasks_to_cancel)} tasks and WebSocket connections")
-
-# Global server state
-server_state = ServerState()
+# ServerState class moved to core.server_state
 
 async def run_background_task(coro, task_name: str = "unnamed"):
     """Run a coroutine as a background task with proper tracking."""
@@ -361,6 +323,36 @@ if '--stdio' in sys.argv:
     except ImportError:
         pass
 
+# Import core utilities
+from core import (
+    make_json_safe,
+    SecurityError,
+    validate_path_security,
+    is_path_safe,
+    enhanced_handle_error,
+    handle_error,
+    log_agent_error,
+    get_error_suggestion,
+    get_last_errors as core_get_last_errors,
+    clear_agent_errors,
+    set_custom_agent_name,
+    get_agent_name,
+    ServerState,
+    server_state,
+    run_background_task,
+    get_server_state
+)
+
+# Import modular file operations
+from files import (
+    smart_write_file as files_smart_write_file,
+    smart_read_file as files_smart_read_file,
+    smart_edit_file as files_smart_edit_file,
+    patch_file as files_patch_file,
+    file_manager as files_file_manager,
+    set_working_directory
+)
+
 # Add health endpoint to fix 404 errors in logs
 @mcp.custom_route("/health", methods=["GET"])
 async def health_endpoint(request):
@@ -386,15 +378,13 @@ console_log_listeners = {}
 websocket_connections = {}  # Store persistent WebSocket connections
 connection_lock = threading.Lock()
 
-# Socket.IO client for orchestration
+# get_agent_name function moved to core.error_handling
+
 socketio_client = None
 socketio_connected = False
 
 # Resource cleanup tracking (enhanced by ServerState)
 active_connections = set()
-background_tasks = set()
-
-# Multi-Agent Messaging System
 # ===========================
 
 import shutil
@@ -436,10 +426,6 @@ def ensure_messaging_directories():
     # Initialize sequence file if it doesn't exist
     if not sequence_file.exists():
         sequence_file.write_text("0")
-
-def get_agent_name() -> str:
-    """Get agent name from current repo directory."""
-    return Path.cwd().name
 
 def get_next_message_id() -> int:
     """Get next sequential message ID with proper locking."""
@@ -516,6 +502,13 @@ def register_agent() -> Dict[str, Any]:
         json.dump(registration_info, f, indent=2)
     
     return registration_info
+
+# ============================================================================
+# CUSTOM AGENT NAME SUPPORT FOR MULTI-AGENT COORDINATION
+# ============================================================================
+
+# Global agent name override
+# Agent name functions moved to core.error_handling
 
 def get_agent_registration(agent_name: str) -> Optional[Dict[str, Any]]:
     """Get registration info for a specific agent."""
@@ -699,6 +692,72 @@ def read_agent_file(agent_name: str, file_path: str) -> Optional[str]:
         pass
     
     return None
+
+
+@mcp.tool()
+def register_agent_with_name(agent_name: str) -> Dict[str, Any]:
+    """
+    Register current agent with a custom name for multi-agent coordination.
+    
+    This allows multiple Claude instances running from the same directory 
+    to have distinct identities in the messaging system.
+    
+    Args:
+        agent_name: Custom name for this agent (e.g., "ProductManager", "FrontendDev")
+        
+    Returns:
+        Registration result with agent information
+    """
+    try:
+        # Set the custom agent name globally
+        set_custom_agent_name(agent_name)
+        
+        # Register with the messaging system using the new name
+        registration_info = register_agent()
+        
+        return {
+            "success": True,
+            "operation": "register_with_custom_name", 
+            "agent_name": agent_name,
+            "previous_name": Path.cwd().name,  # Show what the directory-based name was
+            "registration": registration_info,
+            "message": f"Agent successfully registered as '{agent_name}'"
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("register_agent_with_name", e, {
+            "agent_name": agent_name
+        })
+
+
+@mcp.tool()
+def get_current_agent_name() -> Dict[str, Any]:
+    """
+    Get the current agent name being used for messaging.
+    
+    Returns:
+        Current agent name and registration status
+    """
+    try:
+        current_name = get_agent_name()
+        directory_name = Path.cwd().name
+        is_custom = current_name != directory_name
+        
+        # Check if agent is registered
+        registration_info = get_agent_registration(current_name)
+        
+        return {
+            "success": True,
+            "operation": "get_current_agent_name",
+            "agent_name": current_name,
+            "directory_name": directory_name,
+            "is_custom_name": is_custom,
+            "is_registered": registration_info is not None,
+            "registration_info": registration_info
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("get_current_agent_name", e)
 
 @mcp.tool()
 def messages(operation: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -970,50 +1029,9 @@ atexit.register(cleanup_resources)
 signal.signal(signal.SIGINT, lambda s, f: cleanup_resources())
 signal.signal(signal.SIGTERM, lambda s, f: cleanup_resources())
 
-def make_json_safe(obj):
-    """Convert object to JSON-safe format with comprehensive Unicode handling."""
-    if isinstance(obj, (str, int, float, bool, type(None))):
-        if isinstance(obj, str):
-            try:
-                # Handle Unicode encoding issues including surrogate pairs
-                obj.encode('utf-8', 'strict')
-                return obj
-            except UnicodeEncodeError as e:
-                logger.warning(f"Unicode encoding issue: {e}")
-                # Handle surrogate pairs and invalid Unicode safely
-                return obj.encode('utf-8', 'replace').decode('utf-8')
-        return obj
-    elif isinstance(obj, datetime):
-        return obj.isoformat()
-    elif isinstance(obj, dict):
-        return {str(k): make_json_safe(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [make_json_safe(item) for item in obj]
-    else:
-        try:
-            str_obj = str(obj)
-            str_obj.encode('utf-8', 'strict')
-            return str_obj
-        except UnicodeEncodeError:
-            return str(obj).encode('utf-8', 'replace').decode('utf-8')
+# make_json_safe function moved to core.json_utils
 
-def handle_error(operation: str, error: Exception, context: dict = None) -> dict:
-    """Standard error response format for MCP tools."""
-    error_response = {
-        "success": False,
-        "operation": operation,
-        "error": str(error),
-        "error_type": type(error).__name__,
-        "timestamp": datetime.now().isoformat()
-    }
-    
-    if context:
-        error_response["context"] = make_json_safe(context)
-    
-    # Log error for debugging
-    logger.error(f"Error in {operation}: {error}", exc_info=True)
-    
-    return error_response
+# handle_error function moved to core.error_handling
 
 # Core File Operations
 
@@ -1066,16 +1084,15 @@ def get_project_structure(directory: str = ".", max_depth: int = 3) -> Dict[str,
         return result
     
     try:
-        dir_path = Path(directory).resolve()
-        cwd = Path.cwd().resolve()
-        
-        if not str(dir_path).startswith(str(cwd)):
-            return {"error": "Access denied: path outside working directory"}
+        try:
+            dir_path = validate_path_security(directory)
+        except SecurityError as e:
+            return {"error": str(e)}
         
         return {
             "structure": build_tree(dir_path),
             "metadata": {
-                "directory": str(dir_path.relative_to(cwd)),
+                "directory": str(dir_path.relative_to(Path.cwd())),
                 "max_depth": max_depth,
                 "timestamp": datetime.now().isoformat()
             }
@@ -1095,11 +1112,10 @@ def analyze_code(file_path: str) -> Dict[str, Any]:
         Dictionary with detailed code analysis results
     """
     try:
-        file_path = Path(file_path).resolve()
-        cwd = Path.cwd().resolve()
-        
-        if not str(file_path).startswith(str(cwd)):
-            return {"error": "Access denied: path outside working directory"}
+        try:
+            file_path = validate_path_security(file_path)
+        except SecurityError as e:
+            return {"error": str(e)}
         
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -2430,93 +2446,7 @@ comm_hub = CommunicationHub()
 # ============================================================================
 
 # Global error log storage with agent tracking
-agent_error_logs = {}  # agent_name -> list of error entries
-error_log_lock = threading.Lock()
-
-def log_agent_error(operation: str, error: Exception, context: dict = None, agent_name: str = None) -> str:
-    """
-    Log error with agent tracking and return error ID for retrieval.
-    
-    Args:
-        operation: Name of the operation that failed
-        error: The exception that occurred
-        context: Additional context information
-        agent_name: Name of the agent (auto-detected if None)
-        
-    Returns:
-        Error ID for later retrieval
-    """
-    if agent_name is None:
-        agent_name = get_agent_name()
-    
-    error_id = f"{int(time.time() * 1000000)}_{uuid.uuid4().hex[:8]}"
-    
-    error_entry = {
-        "error_id": error_id,
-        "operation": operation,
-        "error": str(error),
-        "error_type": type(error).__name__,
-        "traceback": traceback.format_exc(),
-        "context": make_json_safe(context) if context else None,
-        "agent_name": agent_name,
-        "timestamp": datetime.now().isoformat(),
-        "unix_timestamp": time.time()
-    }
-    
-    # Store error with thread safety
-    with error_log_lock:
-        if agent_name not in agent_error_logs:
-            agent_error_logs[agent_name] = []
-        
-        agent_error_logs[agent_name].append(error_entry)
-        
-        # Keep only last 50 errors per agent to prevent memory bloat
-        if len(agent_error_logs[agent_name]) > 50:
-            agent_error_logs[agent_name] = agent_error_logs[agent_name][-50:]
-    
-    # Log to file as well
-    logger.error(f"Error {error_id} in {operation} for agent {agent_name}: {error}", exc_info=True)
-    
-    return error_id
-
-def enhanced_handle_error(operation: str, error: Exception, context: dict = None, agent_name: str = None) -> dict:
-    """Enhanced error response with agent tracking and detailed information."""
-    error_id = log_agent_error(operation, error, context, agent_name)
-    
-    error_response = {
-        "success": False,
-        "operation": operation,
-        "error": str(error),
-        "error_type": type(error).__name__,
-        "error_id": error_id,
-        "timestamp": datetime.now().isoformat(),
-        "agent_name": agent_name or get_agent_name(),
-        "suggestion": get_error_suggestion(error, operation)
-    }
-    
-    if context:
-        error_response["context"] = make_json_safe(context)
-    
-    return error_response
-
-def get_error_suggestion(error: Exception, operation: str) -> str:
-    """Get helpful suggestion based on error type and operation."""
-    error_type = type(error).__name__
-    
-    suggestions = {
-        "FileNotFoundError": f"File not found. Check if the path exists or create the directory first.",
-        "PermissionError": f"Permission denied. Ensure you have write access to the target location.",
-        "UnicodeDecodeError": f"File encoding issue. The file may be binary or use a different encoding.",
-        "JSONDecodeError": f"Invalid JSON format. Check the JSON syntax.",
-        "ConnectionError": f"Network connection failed. Check if the service is running.",
-        "TimeoutError": f"Operation timed out. The service may be overloaded.",
-        "ValueError": f"Invalid parameter value. Check the input parameters.",
-        "TypeError": f"Incorrect data type. Check the parameter types.",
-        "ImportError": f"Missing dependency. Install required packages.",
-        "OSError": f"Operating system error. Check system resources and permissions."
-    }
-    
-    return suggestions.get(error_type, f"Unexpected {error_type} in {operation}. Check the error details above.")
+# Error handling functions moved to core.error_handling
 
 @mcp.tool()
 def get_last_errors(agent_name: str = None, limit: int = 10, operation_filter: str = None) -> Dict[str, Any]:
@@ -2531,33 +2461,7 @@ def get_last_errors(agent_name: str = None, limit: int = 10, operation_filter: s
     Returns:
         Dictionary with error list and metadata
     """
-    try:
-        if agent_name is None:
-            agent_name = get_agent_name()
-        
-        with error_log_lock:
-            agent_errors = agent_error_logs.get(agent_name, [])
-        
-        # Apply operation filter if specified
-        if operation_filter:
-            agent_errors = [e for e in agent_errors if operation_filter.lower() in e["operation"].lower()]
-        
-        # Sort by timestamp (newest first) and limit
-        sorted_errors = sorted(agent_errors, key=lambda x: x["unix_timestamp"], reverse=True)
-        limited_errors = sorted_errors[:limit]
-        
-        return {
-            "success": True,
-            "agent_name": agent_name,
-            "errors": limited_errors,
-            "total_errors": len(agent_errors),
-            "filtered_count": len(limited_errors),
-            "operation_filter": operation_filter,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        return handle_error("get_last_errors", e)
+    return core_get_last_errors(agent_name, limit, operation_filter)
 
 
 
@@ -2585,105 +2489,7 @@ def smart_write_file(
     Returns:
         Detailed write result with metadata
     """
-    agent_name = get_agent_name()
-    start_time = time.time()
-    
-    try:
-        file_path = Path(file_path).resolve()
-        cwd = Path.cwd().resolve()
-        
-        # Security validation
-        if not str(file_path).startswith(str(cwd)):
-            error = SecurityError("Access denied: path outside working directory")
-            return enhanced_handle_error("smart_write_file", error, 
-                                       {"file_path": str(file_path), "mode": mode}, agent_name)
-        
-        original_content = ""
-        file_existed = file_path.exists()
-        original_size = 0
-        
-        # Read original content if file exists
-        if file_existed:
-            try:
-                with open(file_path, 'r', encoding=encoding) as f:
-                    original_content = f.read()
-                    original_size = len(original_content.encode(encoding))
-            except UnicodeDecodeError:
-                # Try different encodings
-                for alt_encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
-                    try:
-                        with open(file_path, 'r', encoding=alt_encoding) as f:
-                            original_content = f.read()
-                        break
-                    except UnicodeDecodeError:
-                        continue
-                else:
-                    raise UnicodeDecodeError(f"Could not decode file with any supported encoding")
-        
-        # Create backup if requested and file exists
-        backup_path = None
-        if backup and file_existed and original_content:
-            backup_path = file_path.with_suffix(file_path.suffix + f'.backup.{int(time.time())}')
-            with open(backup_path, 'w', encoding=encoding) as f:
-                f.write(original_content)
-            logger.info(f"Created backup: {backup_path}")
-        
-        # Create parent directories if requested
-        if create_dirs:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Handle different write modes
-        final_content = content
-        
-        if mode == "append":
-            final_content = original_content + content
-        elif mode == "prepend":
-            final_content = content + original_content
-        elif mode == "overwrite":
-            final_content = content
-        else:
-            # Default to overwrite for unknown modes
-            logger.warning(f"Unknown write mode '{mode}', defaulting to overwrite")
-            final_content = content
-        
-        # Write the file
-        with open(file_path, 'w', encoding=encoding) as f:
-            f.write(final_content)
-        
-        new_size = len(final_content.encode(encoding))
-        elapsed_time = time.time() - start_time
-        
-        result = {
-            "success": True,
-            "operation": "smart_write_file",
-            "file_path": str(file_path.relative_to(cwd)),
-            "mode": mode,
-            "file_existed": file_existed,
-            "backup_created": backup_path is not None,
-            "backup_path": str(backup_path.relative_to(cwd)) if backup_path else None,
-            "original_size": original_size,
-            "new_size": new_size,
-            "size_change": new_size - original_size,
-            "lines_written": len(final_content.split('\n')),
-            "encoding": encoding,
-            "execution_time": round(elapsed_time, 3),
-            "timestamp": datetime.now().isoformat(),
-            "agent_name": agent_name
-        }
-        
-        logger.info(f"Successfully wrote {new_size} bytes to {file_path} in {elapsed_time:.3f}s")
-        return result
-        
-    except Exception as e:
-        context = {
-            "file_path": str(file_path) if 'file_path' in locals() else file_path,
-            "mode": mode,
-            "content_length": len(content),
-            "backup": backup,
-            "create_dirs": create_dirs,
-            "encoding": encoding
-        }
-        return enhanced_handle_error("smart_write_file", e, context, agent_name)
+    return files_smart_write_file(file_path, content, mode, backup, create_dirs, encoding)
 
 @mcp.tool()
 def smart_read_file(
@@ -2704,90 +2510,10 @@ def smart_read_file(
     Returns:
         File content and metadata or error information
     """
-    agent_name = get_agent_name()
-    start_time = time.time()
-    
-    try:
-        file_path = Path(file_path).resolve()
-        cwd = Path.cwd().resolve()
-        
-        # Security validation
-        if not str(file_path).startswith(str(cwd)):
-            error = SecurityError("Access denied: path outside working directory")
-            return enhanced_handle_error("smart_read_file", error, 
-                                       {"file_path": str(file_path)}, agent_name)
-        
-        if not file_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-        
-        if not file_path.is_file():
-            raise ValueError(f"Path is not a file: {file_path}")
-        
-        # Check file size
-        file_size = file_path.stat().st_size
-        if file_size > max_size:
-            raise ValueError(f"File too large: {file_size} bytes (max: {max_size})")
-        
-        # Detect encoding if auto
-        content = ""
-        detected_encoding = encoding
-        
-        if encoding == "auto":
-            # Try common encodings
-            for enc in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
-                try:
-                    with open(file_path, 'r', encoding=enc) as f:
-                        content = f.read()
-                    detected_encoding = enc
-                    break
-                except UnicodeDecodeError:
-                    continue
-            else:
-                raise UnicodeDecodeError("Could not decode file with any supported encoding")
-        else:
-            with open(file_path, 'r', encoding=encoding) as f:
-                content = f.read()
-            detected_encoding = encoding
-        
-        elapsed_time = time.time() - start_time
-        
-        result = {
-            "success": True,
-            "operation": "smart_read_file",
-            "content": content,
-            "agent_name": agent_name
-        }
-        
-        if return_metadata:
-            stat = file_path.stat()
-            result.update({
-                "metadata": {
-                    "file_path": str(file_path.relative_to(cwd)),
-                    "size": file_size,
-                    "lines": len(content.split('\n')),
-                    "encoding": detected_encoding,
-                    "modified_time": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "execution_time": round(elapsed_time, 3),
-                    "timestamp": datetime.now().isoformat()
-                }
-            })
-        
-        logger.info(f"Successfully read {file_size} bytes from {file_path} in {elapsed_time:.3f}s")
-        return result
-        
-    except Exception as e:
-        context = {
-            "file_path": str(file_path) if 'file_path' in locals() else file_path,
-            "encoding": encoding,
-            "max_size": max_size,
-            "return_metadata": return_metadata
-        }
-        return enhanced_handle_error("smart_read_file", e, context, agent_name)
+    return files_smart_read_file(file_path, encoding, max_size, return_metadata)
 
 # Add SecurityError class for security violations
-class SecurityError(Exception):
-    """Custom exception for security violations."""
-    pass
+# SecurityError class moved to core.security
 
 @mcp.tool()
 def smart_edit_file(
@@ -4042,9 +3768,361 @@ def firebase_project_status(project_id: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             "success": False,
-            "error": f"Status check failed: {str(e)}",
+            "error": f"Firebase project status check failed: {str(e)}",
             "project_id": project_id
         }
+
+# ============================================================================
+# SERVICE ORCHESTRATION TOOLS - CENTRALIZED SERVICE MANAGEMENT
+# ============================================================================
+
+# Import service orchestrator
+try:
+    from service_orchestrator import get_orchestrator
+    SERVICE_ORCHESTRATOR_AVAILABLE = True
+    logger.info("✅ Service Orchestrator loaded")
+except ImportError as e:
+    SERVICE_ORCHESTRATOR_AVAILABLE = False
+    logger.warning(f"⚠️ Service Orchestrator not available: {e}")
+
+@mcp.tool()
+def service_status(service_name: str = None) -> Dict[str, Any]:
+    """
+    Get status of one or all services managed by the orchestrator.
+    
+    Args:
+        service_name: Specific service name, or None for all services
+        
+    Returns:
+        Service status information including PID, health, logs, etc.
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        
+        if service_name:
+            return {
+                "success": True,
+                "service": orchestrator.get_service_status(service_name)
+            }
+        else:
+            return {
+                "success": True, 
+                "services": orchestrator.list_all_services(),
+                "summary": {
+                    "total_services": len(orchestrator.services_config),
+                    "running": sum(1 for s in orchestrator.services_status.values() if s.status == "running"),
+                    "stopped": sum(1 for s in orchestrator.services_status.values() if s.status == "stopped"),
+                    "failed": sum(1 for s in orchestrator.services_status.values() if s.status == "failed")
+                }
+            }
+            
+    except Exception as e:
+        return enhanced_handle_error("service_status", e, {"service_name": service_name})
+
+@mcp.tool()
+def start_service(service_name: str, wait_for_health: bool = True) -> Dict[str, Any]:
+    """
+    Start a specific service.
+    
+    Args:
+        service_name: Name of the service to start
+        wait_for_health: Whether to wait for health check before returning
+        
+    Returns:
+        Start operation result with PID and status
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available" 
+            }
+        
+        orchestrator = get_orchestrator()
+        result = orchestrator.start_service(service_name, wait_for_health)
+        
+        return {
+            "success": result["success"],
+            "operation": "start_service",
+            "service_name": service_name,
+            **result
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("start_service", e, {
+            "service_name": service_name,
+            "wait_for_health": wait_for_health
+        })
+
+@mcp.tool()
+def stop_service(service_name: str, force: bool = False) -> Dict[str, Any]:
+    """
+    Stop a specific service.
+    
+    Args:
+        service_name: Name of the service to stop
+        force: Whether to force kill the service
+        
+    Returns:
+        Stop operation result
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        result = orchestrator.stop_service(service_name, force)
+        
+        return {
+            "success": result["success"],
+            "operation": "stop_service", 
+            "service_name": service_name,
+            "force": force,
+            **result
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("stop_service", e, {
+            "service_name": service_name,
+            "force": force
+        })
+
+@mcp.tool()
+def restart_service(service_name: str) -> Dict[str, Any]:
+    """
+    Restart a specific service.
+    
+    Args:
+        service_name: Name of the service to restart
+        
+    Returns:
+        Restart operation result
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        result = orchestrator.restart_service(service_name)
+        
+        return {
+            "success": result["success"],
+            "operation": "restart_service",
+            "service_name": service_name,
+            **result
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("restart_service", e, {"service_name": service_name})
+
+@mcp.tool()
+def start_all_services(exclude: List[str] = None) -> Dict[str, Any]:
+    """
+    Start all services in dependency order.
+    
+    Args:
+        exclude: List of service names to exclude from startup
+        
+    Returns:
+        Bulk start operation result with individual service results
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        result = orchestrator.start_all_services(exclude or [])
+        
+        return {
+            "success": result["success"],
+            "operation": "start_all_services",
+            "excluded": exclude or [],
+            **result
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("start_all_services", e, {"exclude": exclude})
+
+@mcp.tool()
+def stop_all_services(force: bool = False) -> Dict[str, Any]:
+    """
+    Stop all running services.
+    
+    Args:
+        force: Whether to force kill all services
+        
+    Returns:
+        Bulk stop operation result
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        result = orchestrator.stop_all_services(force)
+        
+        return {
+            "success": result["success"],
+            "operation": "stop_all_services",
+            "force": force,
+            **result
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("stop_all_services", e, {"force": force})
+
+@mcp.tool()
+def service_logs(service_name: str, lines: int = 50) -> Dict[str, Any]:
+    """
+    Get recent log entries for a service.
+    
+    Args:
+        service_name: Name of the service
+        lines: Number of recent log lines to retrieve
+        
+    Returns:
+        Recent log entries and log file information
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        
+        # Get service status which includes recent logs
+        status = orchestrator.get_service_status(service_name)
+        
+        if "error" in status:
+            return {"success": False, **status}
+        
+        # Try to read more lines from log file
+        log_file = Path(status["log_file"])
+        recent_logs = []
+        
+        if log_file.exists():
+            try:
+                with open(log_file, 'r') as f:
+                    all_lines = f.readlines()
+                    recent_logs = all_lines[-lines:] if len(all_lines) > lines else all_lines
+            except Exception as e:
+                logger.warning(f"Could not read log file {log_file}: {e}")
+                recent_logs = status.get("recent_logs", [])
+        
+        return {
+            "success": True,
+            "operation": "service_logs",
+            "service_name": service_name,
+            "log_file": str(log_file),
+            "lines_requested": lines,
+            "lines_returned": len(recent_logs),
+            "logs": recent_logs,
+            "log_file_exists": log_file.exists()
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("service_logs", e, {
+            "service_name": service_name,
+            "lines": lines
+        })
+
+@mcp.tool()
+def service_health_check() -> Dict[str, Any]:
+    """
+    Perform health checks on all services and return comprehensive status.
+    
+    Returns:
+        Health check results for all services
+    """
+    try:
+        if not SERVICE_ORCHESTRATOR_AVAILABLE:
+            return {
+                "success": False,
+                "error": "Service Orchestrator not available"
+            }
+        
+        orchestrator = get_orchestrator()
+        
+        # Get all service statuses
+        all_services = orchestrator.list_all_services()
+        
+        health_summary = {
+            "healthy": [],
+            "unhealthy": [],
+            "unknown": [],
+            "not_running": []
+        }
+        
+        for service_name, service_data in all_services.items():
+            if service_data["status"] != "running":
+                health_summary["not_running"].append(service_name)
+            elif service_data["health_status"] == "healthy":
+                health_summary["healthy"].append(service_name)
+            elif service_data["health_status"] == "unhealthy":
+                health_summary["unhealthy"].append(service_name)
+            else:
+                health_summary["unknown"].append(service_name)
+        
+        overall_health = "healthy"
+        if health_summary["unhealthy"]:
+            overall_health = "unhealthy" 
+        elif health_summary["unknown"] or health_summary["not_running"]:
+            overall_health = "degraded"
+        
+        return {
+            "success": True,
+            "operation": "service_health_check",
+            "overall_health": overall_health,
+            "timestamp": datetime.now().isoformat(),
+            "summary": health_summary,
+            "details": all_services,
+            "recommendations": _get_health_recommendations(health_summary)
+        }
+        
+    except Exception as e:
+        return enhanced_handle_error("service_health_check", e)
+
+def _get_health_recommendations(health_summary: Dict[str, List[str]]) -> List[str]:
+    """Generate health recommendations based on service status"""
+    recommendations = []
+    
+    if health_summary["unhealthy"]:
+        recommendations.append(f"🔴 Restart unhealthy services: {', '.join(health_summary['unhealthy'])}")
+    
+    if health_summary["not_running"]:
+        recommendations.append(f"▶️ Start stopped services: {', '.join(health_summary['not_running'])}")
+    
+    if health_summary["unknown"]:
+        recommendations.append(f"❓ Check services with unknown health: {', '.join(health_summary['unknown'])}")
+    
+    if not recommendations:
+        recommendations.append("✅ All services are healthy!")
+    
+    return recommendations
+
+# ============================================================================
+# END SERVICE ORCHESTRATION TOOLS  
+# ============================================================================
 
 @mcp.tool()
 def firebase_batch_operations(
@@ -4230,6 +4308,11 @@ if __name__ == "__main__":
                 sequence_file.write_text("0")
             
             logger.info(f"STDIO Fix Applied - Messages dir ready: {messages_dir}")
+    
+    # Initialize working directory for modular file operations
+    current_cwd = Path.cwd().resolve()
+    set_working_directory(current_cwd)
+    logger.info(f"Working directory initialized: {current_cwd}")
     
     if not args.stdio:
         print(f"""

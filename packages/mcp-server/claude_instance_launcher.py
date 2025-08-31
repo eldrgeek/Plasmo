@@ -92,13 +92,12 @@ class ClaudeInstanceManager:
                 "terminal_command": None
             }
             
-            # Setup MCP server configuration for this instance
-            mcp_server_path = "/Users/MikeWolf/Projects/Plasmo/mcp_server.py"
+            # Use existing MCP server (should always be running on port 8000)
             mcp_config = mcp_config or {
-                "server_path": mcp_server_path,
-                "host": "localhost",
-                "port": self._get_next_available_port(),
-                "agent_name": f"{role}_{instance_id}"
+                "host": "localhost", 
+                "port": 8000,  # Always use existing main server
+                "agent_name": f"{role}_{instance_id}",
+                "use_existing_server": True
             }
             
             # Create startup script that launches Claude with MCP server
@@ -159,33 +158,45 @@ class ClaudeInstanceManager:
             }
     
     def _create_startup_script(self, instance_id: str, instance_config: Dict, mcp_config: Dict) -> str:
-        """Create startup script for Claude instance with MCP integration."""
+        """Create startup script for Claude instance with MCP tools enabled."""
         
-        script_content = f"""
-#!/bin/bash
+        script_content = f"""#!/bin/bash
+
+# Set terminal color for visual distinction
+printf '\e]11;#1a1a2e\a'  # Dark blue background
+printf '\e]10;#ffffff\a'  # White text
+
 echo "🚀 Starting Claude instance: {instance_id}"
 echo "Role: {instance_config['role']}"
 echo "Project: {instance_config['project_path']}"
 
-# Start MCP server in background
-echo "Starting MCP server on port {mcp_config['port']}..."
-python3 {mcp_config['server_path']} --port {mcp_config['port']} --agent-name {mcp_config['agent_name']} &
-MCP_PID=$!
-
-# Wait for MCP server to start
-sleep 2
-
-# Create Claude Code config for this instance
+# Set environment variables for this instance
 export CLAUDE_INSTANCE_ID="{instance_id}"
 export CLAUDE_ROLE="{instance_config['role']}"
-export MCP_SERVER_URL="http://localhost:{mcp_config['port']}"
 
-# Start Claude Code with MCP integration
-echo "Starting Claude Code..."
-claude-code --mcp-server $MCP_SERVER_URL
+echo "📋 Instance Configuration:"
+echo "   • Instance ID: $CLAUDE_INSTANCE_ID"
+echo "   • Role: $CLAUDE_ROLE" 
+echo "   • Project: {instance_config['project_path']}"
+echo ""
 
-# Cleanup on exit
-trap "kill $MCP_PID 2>/dev/null" EXIT
+# Launch Claude CLI with MCP tools enabled (should be configured via .claude/settings.json)
+echo "🚀 Starting Claude CLI..."
+if command -v claude &> /dev/null; then
+    echo "✅ Found Claude CLI"
+    echo "🔧 MCP tools should be enabled via configuration"
+    echo ""
+    echo "📝 Suggested first command after Claude starts:"
+    echo "   mcp__proxy__register_agent_with_name(agent_name='{mcp_config['agent_name']}')"
+    echo ""
+    claude
+else
+    echo "❌ 'claude' command not found"
+    echo "ℹ️  Please install Claude CLI from: https://claude.ai/code"
+    echo ""
+    echo "Press any key to keep terminal open..."
+    read -n 1
+fi
 """
         
         script_path = self.messaging_root / f"startup_{instance_id}.sh"

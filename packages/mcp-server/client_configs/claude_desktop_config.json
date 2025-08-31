@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "plasmo-proxy": {
+      "command": "python",
+      "args": [
+        "/Users/MikeWolf/Projects/Plasmo/packages/mcp-server/mcp_testing_proxy.py",
+        "--stdio"
+      ]
+    }
+  }
+}
