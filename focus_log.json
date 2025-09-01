@@ -698,5 +698,415 @@
     "timestamp": "2025-08-31T12:59:35.478436",
     "app_name": "Wispr Flow",
     "duration_ms": 5205
+  },
+  {
+    "timestamp": "2025-08-31T12:59:40.684113",
+    "app_name": "Cursor",
+    "duration_ms": 7774734
+  },
+  {
+    "timestamp": "2025-08-31T15:09:15.418442",
+    "app_name": "Google Chrome",
+    "duration_ms": 2370628
+  },
+  {
+    "timestamp": "2025-08-31T15:48:46.047072",
+    "app_name": "Terminal",
+    "duration_ms": 5194
+  },
+  {
+    "timestamp": "2025-08-31T15:48:51.241402",
+    "app_name": "Google Chrome",
+    "duration_ms": 119269
+  },
+  {
+    "timestamp": "2025-08-31T15:50:50.510706",
+    "app_name": "Slack",
+    "duration_ms": 15518
+  },
+  {
+    "timestamp": "2025-08-31T15:51:06.029614",
+    "app_name": "Google Chrome",
+    "duration_ms": 595049
+  },
+  {
+    "timestamp": "2025-08-31T16:01:01.079022",
+    "app_name": "Claude",
+    "duration_ms": 5282
+  },
+  {
+    "timestamp": "2025-08-31T16:01:06.361137",
+    "app_name": "Cursor",
+    "duration_ms": 31031
+  },
+  {
+    "timestamp": "2025-08-31T16:01:37.392492",
+    "app_name": "Wispr Flow",
+    "duration_ms": 129491
+  },
+  {
+    "timestamp": "2025-08-31T16:03:46.884161",
+    "app_name": "Google Chrome",
+    "duration_ms": 4308998
+  },
+  {
+    "timestamp": "2025-08-31T17:15:35.882723",
+    "app_name": "Limitless",
+    "duration_ms": 15485
+  },
+  {
+    "timestamp": "2025-08-31T17:15:51.368200",
+    "app_name": "Wispr Flow",
+    "duration_ms": 15567
+  },
+  {
+    "timestamp": "2025-08-31T17:16:06.935881",
+    "app_name": "Slack",
+    "duration_ms": 25939
+  },
+  {
+    "timestamp": "2025-08-31T17:16:32.875547",
+    "app_name": "Google Chrome",
+    "duration_ms": 559239
+  },
+  {
+    "timestamp": "2025-08-31T17:25:52.115224",
+    "app_name": "Claude",
+    "duration_ms": 5253
+  },
+  {
+    "timestamp": "2025-08-31T17:25:57.368968",
+    "app_name": "Cursor",
+    "duration_ms": 2484408
+  },
+  {
+    "timestamp": "2025-08-31T18:07:21.777381",
+    "app_name": "Terminal",
+    "duration_ms": 5188
+  },
+  {
+    "timestamp": "2025-08-31T18:07:26.966137",
+    "app_name": "Cursor",
+    "duration_ms": 2117474
+  },
+  {
+    "timestamp": "2025-08-31T18:42:44.440138",
+    "app_name": "Terminal",
+    "duration_ms": 5201
+  },
+  {
+    "timestamp": "2025-08-31T18:42:49.641222",
+    "app_name": "Claude",
+    "duration_ms": 5184
+  },
+  {
+    "timestamp": "2025-08-31T18:42:54.825231",
+    "app_name": "Google Chrome",
+    "duration_ms": 53874636
+  },
+  {
+    "timestamp": "2025-09-01T09:40:49.461809",
+    "app_name": "Claude",
+    "duration_ms": 15669
+  },
+  {
+    "timestamp": "2025-09-01T09:41:05.131675",
+    "app_name": "Cursor",
+    "duration_ms": 718906
+  },
+  {
+    "timestamp": "2025-09-01T09:53:04.038118",
+    "app_name": "Terminal",
+    "duration_ms": 5160
+  },
+  {
+    "timestamp": "2025-09-01T09:53:09.198876",
+    "app_name": "Claude",
+    "duration_ms": 16089
+  },
+  {
+    "timestamp": "2025-09-01T09:53:25.288285",
+    "app_name": "Terminal",
+    "duration_ms": 5808
+  },
+  {
+    "timestamp": "2025-09-01T09:53:31.096736",
+    "app_name": "Claude",
+    "duration_ms": 114135
+  },
+  {
+    "timestamp": "2025-09-01T09:55:25.232297",
+    "app_name": "Limitless",
+    "duration_ms": 5147
+  },
+  {
+    "timestamp": "2025-09-01T09:55:30.379544",
+    "app_name": "Claude",
+    "duration_ms": 31096
+  },
+  {
+    "timestamp": "2025-09-01T09:56:01.475547",
+    "app_name": "Wispr Flow",
+    "duration_ms": 10362
+  },
+  {
+    "timestamp": "2025-09-01T09:56:11.838161",
+    "app_name": "Cursor",
+    "duration_ms": 25946
+  },
+  {
+    "timestamp": "2025-09-01T09:56:37.784847",
+    "app_name": "Claude",
+    "duration_ms": 36206
+  },
+  {
+    "timestamp": "2025-09-01T09:57:13.991552",
+    "app_name": "Cursor",
+    "duration_ms": 10322
+  },
+  {
+    "timestamp": "2025-09-01T09:57:24.313818",
+    "app_name": "Claude",
+    "duration_ms": 377805
+  },
+  {
+    "timestamp": "2025-09-01T10:03:42.119699",
+    "app_name": "Cursor",
+    "duration_ms": 15482
+  },
+  {
+    "timestamp": "2025-09-01T10:03:57.602556",
+    "app_name": "Claude",
+    "duration_ms": 5172
+  },
+  {
+    "timestamp": "2025-09-01T10:04:02.774770",
+    "app_name": "Cursor",
+    "duration_ms": 5177
+  },
+  {
+    "timestamp": "2025-09-01T10:04:07.952304",
+    "app_name": "Terminal",
+    "duration_ms": 5185
+  },
+  {
+    "timestamp": "2025-09-01T10:04:13.137601",
+    "app_name": "Claude",
+    "duration_ms": 448121
+  },
+  {
+    "timestamp": "2025-09-01T10:11:41.258908",
+    "app_name": "Google Chrome",
+    "duration_ms": 1231338
+  },
+  {
+    "timestamp": "2025-09-01T10:32:12.597561",
+    "app_name": "Claude",
+    "duration_ms": 41518
+  },
+  {
+    "timestamp": "2025-09-01T10:32:54.116401",
+    "app_name": "Cursor",
+    "duration_ms": 10341
+  },
+  {
+    "timestamp": "2025-09-01T10:33:04.458395",
+    "app_name": "Claude",
+    "duration_ms": 5184
+  },
+  {
+    "timestamp": "2025-09-01T10:33:09.643313",
+    "app_name": "Cursor",
+    "duration_ms": 5176
+  },
+  {
+    "timestamp": "2025-09-01T10:33:14.820017",
+    "app_name": "Claude",
+    "duration_ms": 31039
+  },
+  {
+    "timestamp": "2025-09-01T10:33:45.859525",
+    "app_name": "Cursor",
+    "duration_ms": 77575
+  },
+  {
+    "timestamp": "2025-09-01T10:35:03.435470",
+    "app_name": "Claude",
+    "duration_ms": 10363
+  },
+  {
+    "timestamp": "2025-09-01T10:35:13.799454",
+    "app_name": "Cursor",
+    "duration_ms": 15558
+  },
+  {
+    "timestamp": "2025-09-01T10:35:29.358052",
+    "app_name": "Claude",
+    "duration_ms": 15551
+  },
+  {
+    "timestamp": "2025-09-01T10:35:44.909790",
+    "app_name": "Finder",
+    "duration_ms": 10358
+  },
+  {
+    "timestamp": "2025-09-01T10:35:55.268084",
+    "app_name": "Cursor",
+    "duration_ms": 5180
+  },
+  {
+    "timestamp": "2025-09-01T10:36:00.448597",
+    "app_name": "Claude",
+    "duration_ms": 36241
+  },
+  {
+    "timestamp": "2025-09-01T10:36:36.690472",
+    "app_name": "Cursor",
+    "duration_ms": 10350
+  },
+  {
+    "timestamp": "2025-09-01T10:36:47.041255",
+    "app_name": "Claude",
+    "duration_ms": 160448
+  },
+  {
+    "timestamp": "2025-09-01T10:39:27.489680",
+    "app_name": "Google Chrome",
+    "duration_ms": 5203
+  },
+  {
+    "timestamp": "2025-09-01T10:39:32.692721",
+    "app_name": "Claude",
+    "duration_ms": 176204
+  },
+  {
+    "timestamp": "2025-09-01T10:42:28.896752",
+    "app_name": "Cursor",
+    "duration_ms": 227797
+  },
+  {
+    "timestamp": "2025-09-01T10:46:16.693790",
+    "app_name": "Claude",
+    "duration_ms": 31027
+  },
+  {
+    "timestamp": "2025-09-01T10:46:47.720993",
+    "app_name": "Cursor",
+    "duration_ms": 5172
+  },
+  {
+    "timestamp": "2025-09-01T10:46:52.893513",
+    "app_name": "Claude",
+    "duration_ms": 5164
+  },
+  {
+    "timestamp": "2025-09-01T10:46:58.058316",
+    "app_name": "Cursor",
+    "duration_ms": 10491
+  },
+  {
+    "timestamp": "2025-09-01T10:47:08.549924",
+    "app_name": "Claude",
+    "duration_ms": 51861
+  },
+  {
+    "timestamp": "2025-09-01T10:48:00.411274",
+    "app_name": "Cursor",
+    "duration_ms": 15483
+  },
+  {
+    "timestamp": "2025-09-01T10:48:15.894940",
+    "app_name": "Claude",
+    "duration_ms": 30971
+  },
+  {
+    "timestamp": "2025-09-01T10:48:46.866820",
+    "app_name": "Cursor",
+    "duration_ms": 41395
+  },
+  {
+    "timestamp": "2025-09-01T10:49:28.262396",
+    "app_name": "Claude",
+    "duration_ms": 31104
+  },
+  {
+    "timestamp": "2025-09-01T10:49:59.367307",
+    "app_name": "Cursor",
+    "duration_ms": 15561
+  },
+  {
+    "timestamp": "2025-09-01T10:50:14.928554",
+    "app_name": "Claude",
+    "duration_ms": 15567
+  },
+  {
+    "timestamp": "2025-09-01T10:50:30.495685",
+    "app_name": "Cursor",
+    "duration_ms": 15478
+  },
+  {
+    "timestamp": "2025-09-01T10:50:45.973963",
+    "app_name": "Claude",
+    "duration_ms": 25797
+  },
+  {
+    "timestamp": "2025-09-01T10:51:11.770981",
+    "app_name": "Cursor",
+    "duration_ms": 5164
+  },
+  {
+    "timestamp": "2025-09-01T10:51:16.935443",
+    "app_name": "Claude",
+    "duration_ms": 108874
+  },
+  {
+    "timestamp": "2025-09-01T10:53:05.810064",
+    "app_name": "Cursor",
+    "duration_ms": 5164
+  },
+  {
+    "timestamp": "2025-09-01T10:53:10.974316",
+    "app_name": "Terminal",
+    "duration_ms": 248426
+  },
+  {
+    "timestamp": "2025-09-01T10:57:19.401144",
+    "app_name": "Claude",
+    "duration_ms": 170814
+  },
+  {
+    "timestamp": "2025-09-01T11:00:10.215455",
+    "app_name": "Wispr Flow",
+    "duration_ms": 5184
+  },
+  {
+    "timestamp": "2025-09-01T11:00:15.400181",
+    "app_name": "Claude",
+    "duration_ms": 15502
+  },
+  {
+    "timestamp": "2025-09-01T11:00:30.902297",
+    "app_name": "Limitless",
+    "duration_ms": 5156
+  },
+  {
+    "timestamp": "2025-09-01T11:00:36.058509",
+    "app_name": "Google Chrome",
+    "duration_ms": 20688
+  },
+  {
+    "timestamp": "2025-09-01T11:00:56.746685",
+    "app_name": "zoom.us",
+    "duration_ms": 659064
+  },
+  {
+    "timestamp": "2025-09-01T11:11:55.811278",
+    "app_name": "Rewind",
+    "duration_ms": 1754360
+  },
+  {
+    "timestamp": "2025-09-01T11:41:10.171801",
+    "app_name": "Claude",
+    "duration_ms": 2385349
   }
 ]
