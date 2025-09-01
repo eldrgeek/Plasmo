@@ -1,0 +1,719 @@
+# Native Tool Registry
+# ===================
+# This file defines discoverable tools that can be executed by LLMs
+# through the native tool system. Tools are discovered via AI intent
+# matching and executed through the execute_native_tool() MCP function.
+
+version: 1.0
+auto_reload: true
+validation_on_change: true
+
+tools:
+  # System Automation
+  instant_capture:
+    name: instant_capture
+    description: Beautiful AI capture system with floating UI and theme support
+    category: capture
+    script: instant_capture_beautiful.py
+    supports_persistent: true
+    requires_review: false
+    keywords: [capture, ai, screenshot, ui, beautiful, floating]
+
+    parameters:
+      theme:
+        type: string
+        default: dark
+        options: [dark, light]
+        description: UI theme for the capture interface
+      position:
+        type: string
+        default: top-right
+        options: [top-left, top-right, bottom-left, bottom-right, center]
+        description: Position of the floating capture UI
+
+    validation:
+      script_exists: true
+      dependencies: [python3, tkinter]
+      test_command: python3 instant_capture_beautiful.py --test
+
+    use_cases:
+      - I want to capture something
+      - Take a screenshot with AI
+      - Start the capture system
+      - Launch beautiful capture interface
+
+  package_installer:
+    name: package_installer
+    description: Install Python packages via pip with dependency resolution and upgrade options
+    category: development
+    command_template: pip3 install {package_name} {flags}
+    supports_persistent: false
+    requires_review: false
+    keywords: [install, package, pip, dependency, python, development]
+
+    parameters:
+      package_name:
+        type: string
+        required: true
+        description: Name of the Python package to install
+      upgrade:
+        type: boolean
+        default: false
+        description: Whether to upgrade if already installed
+      flags:
+        type: string
+        default: ""
+        description: Additional pip flags (e.g., --user, --force-reinstall)
+
+    validation:
+      dependencies: [pip3, python3]
+      test_command: pip3 --version
+
+    use_cases:
+      - I need to install a package
+      - Add a dependency
+      - Install Python library
+      - Update package dependencies
+
+  # AI Service Automation
+  cursor_prompt_injector:
+    name: cursor_prompt_injector
+    description: Cross-platform Cursor AI chat automation with keyboard injection
+    category: ai_automation
+    script: cursor_ai_injector.py
+    supports_persistent: false
+    requires_review: false
+    keywords: [cursor, ai, prompt, injection, automation, keyboard]
+
+    parameters:
+      prompt:
+        type: string
+        required: true
+        description: Prompt to inject into Cursor AI chat
+      chat_type:
+        type: string
+        default: chat
+        options: [chat, composer]
+        description: Type of Cursor AI interface to target
+
+    validation:
+      script_exists: true
+      dependencies: [python3]
+      test_command: python3 cursor_ai_injector.py --test
+
+    use_cases:
+      - I want to send a prompt to Cursor AI
+      - Automate Cursor chat interaction
+      - Inject code generation requests
+      - Send prompts to Cursor composer
+
+  discord_channel_exporter:
+    name: discord_channel_exporter
+    description: Export Discord channel messages via Chrome Debug Protocol with format options
+    category: data_extraction
+    script: discord_export_automation.py
+    supports_persistent: false
+    requires_review: true # Data export needs review
+    keywords: [discord, export, messages, data, chrome, automation]
+
+    parameters:
+      channel_url:
+        type: string
+        required: true
+        description: Discord channel URL to export
+      output_format:
+        type: string
+        default: json
+        options: [json, csv, txt, markdown]
+        description: Output format for exported data
+      max_messages:
+        type: integer
+        default: 1000
+        description: Maximum number of messages to export
+
+    validation:
+      dependencies: [chrome, python3]
+      test_command: python3 discord_export_automation.py --test
+
+    use_cases:
+      - I need to export Discord conversations
+      - Backup Discord channel data
+      - Analyze Discord message history
+      - Extract Discord discussions for analysis
+
+  # Development Tools
+  extension_manager:
+    name: extension_manager
+    description: Chrome extension lifecycle management and development automation
+    category: development
+    script: extension_manager.py
+    supports_persistent: false
+    requires_review: false
+    keywords: [chrome, extension, development, reload, debug]
+
+    parameters:
+      action:
+        type: string
+        required: true
+        options: [reload, enable, disable, inspect, list]
+        description: Action to perform on extension
+      extension_id:
+        type: string
+        required: false
+        description: Specific extension ID (if not provided, uses current project)
+
+    validation:
+      dependencies: [chrome, python3]
+      script_exists: true
+
+    use_cases:
+      - I need to reload my extension
+      - Manage Chrome extension development
+      - Automate extension testing
+      - Debug extension issues
+
+  focus_monitor:
+    name: focus_monitor
+    description: Window focus monitoring and productivity tracking system
+    category: productivity
+    script: focus_monitor.py
+    supports_persistent: true
+    requires_review: false
+    keywords: [focus, monitoring, productivity, window, tracking]
+
+    parameters:
+      duration:
+        type: integer
+        default: 60
+        description: Monitoring duration in minutes (0 for continuous)
+      output_file:
+        type: string
+        default: focus_log.json
+        description: File to save focus tracking data
+
+    validation:
+      script_exists: true
+      dependencies: [python3]
+
+    use_cases:
+      - I want to track my focus
+      - Monitor window usage
+      - Start productivity tracking
+      - Analyze work patterns
+
+  # Claude Instance Management (moved from core MCP tools)
+  launch_claude_instance:
+    name: launch_claude_instance
+    description: Launch a new Claude Code instance with inter-communication capabilities
+    category: agent_management
+    module: agents.claude_instances
+    function: launch_claude_instance
+    supports_persistent: false
+    requires_review: false
+    keywords: [claude, instance, launch, agent, coordination]
+
+    parameters:
+      role:
+        type: string
+        default: assistant
+        description: Role for the instance (e.g., "reviewer", "implementer", "coordinator", "tester")
+      project_path:
+        type: string
+        required: false
+        description: Path to project directory (defaults to current working directory)
+      startup_message:
+        type: string
+        required: false
+        description: Initial message to send to the new instance after launch
+
+    use_cases:
+      - I want to launch a new Claude instance
+      - Create a multi-agent workflow
+      - Start a collaborative coding session
+      - Launch a specialized agent
+
+  list_claude_instances:
+    name: list_claude_instances
+    description: List all active Claude instances with their roles and status
+    category: agent_management
+    module: agents.claude_instances
+    function: list_claude_instances
+    supports_persistent: false
+    requires_review: false
+    keywords: [claude, instance, list, agent, status]
+
+    use_cases:
+      - I want to see all running Claude instances
+      - Check agent status and roles
+      - Monitor multi-agent system
+      - List available agents
+
+  send_inter_instance_message:
+    name: send_inter_instance_message
+    description: Send a message to another Claude instance for coordination
+    category: agent_management
+    module: agents.claude_instances
+    function: send_inter_instance_message
+    supports_persistent: false
+    requires_review: false
+    keywords: [claude, instance, message, communication, coordination]
+
+    parameters:
+      target_instance_id:
+        type: string
+        required: true
+        description: ID of the target Claude instance (from list_claude_instances)
+      subject:
+        type: string
+        required: true
+        description: Message subject line
+      message:
+        type: string
+        required: true
+        description: Message content (can include JSON data, instructions, etc.)
+      sender_role:
+        type: string
+        default: coordinator
+        description: Role of the sender
+
+    use_cases:
+      - I want to send a message to another Claude instance
+      - Coordinate between agents
+      - Share information between instances
+      - Request help from another agent
+
+  coordinate_claude_instances:
+    name: coordinate_claude_instances
+    description: Coordinate multiple Claude instances for a collaborative task
+    category: agent_management
+    module: agents.claude_instances
+    function: coordinate_claude_instances
+    supports_persistent: false
+    requires_review: false
+    keywords: [claude, instance, coordinate, collaboration, multi-agent]
+
+    parameters:
+      task:
+        type: string
+        required: true
+        description: Description of the task to coordinate across instances
+      instance_ids:
+        type: array
+        required: false
+        description: Specific instance IDs to coordinate (if None, coordinates all instances)
+
+    use_cases:
+      - I want to coordinate multiple Claude instances
+      - Distribute work across agents
+      - Create a collaborative workflow
+      - Orchestrate multi-agent tasks
+
+  # Service Orchestration (moved from core MCP tools)
+  service_status:
+    name: service_status
+    description: Get status of one or all services managed by the orchestrator
+    category: service_management
+    module: services.orchestrator
+    function: service_status
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, status, health, monitoring]
+
+    parameters:
+      service_name:
+        type: string
+        required: false
+        description: Specific service name, or None for all services
+
+    use_cases:
+      - I want to check service status
+      - Monitor running services
+      - Check service health
+      - Get service information
+
+  start_service:
+    name: start_service
+    description: Start a specific service
+    category: service_management
+    module: services.orchestrator
+    function: start_service
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, start, launch, management]
+
+    parameters:
+      service_name:
+        type: string
+        required: true
+        description: Name of the service to start
+      wait_for_health:
+        type: boolean
+        default: true
+        description: Whether to wait for health check before returning
+
+    use_cases:
+      - I want to start a service
+      - Launch a stopped service
+      - Restart a failed service
+      - Start development services
+
+  stop_service:
+    name: stop_service
+    description: Stop a specific service
+    category: service_management
+    module: services.orchestrator
+    function: stop_service
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, stop, shutdown, management]
+
+    parameters:
+      service_name:
+        type: string
+        required: true
+        description: Name of the service to stop
+      force:
+        type: boolean
+        default: false
+        description: Whether to force kill the service
+
+    use_cases:
+      - I want to stop a service
+      - Shutdown a running service
+      - Force stop a stuck service
+      - Stop development services
+
+  restart_service:
+    name: restart_service
+    description: Restart a specific service
+    category: service_management
+    module: services.orchestrator
+    function: restart_service
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, restart, reload, management]
+
+    parameters:
+      service_name:
+        type: string
+        required: true
+        description: Name of the service to restart
+
+    use_cases:
+      - I want to restart a service
+      - Reload a service configuration
+      - Restart after changes
+      - Restart development services
+
+  start_all_services:
+    name: start_all_services
+    description: Start all services in dependency order
+    category: service_management
+    module: services.orchestrator
+    function: start_all_services
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, start, all, bulk, management]
+
+    parameters:
+      exclude:
+        type: array
+        required: false
+        description: List of service names to exclude from startup
+
+    use_cases:
+      - I want to start all services
+      - Launch the full development environment
+      - Start all background services
+      - Initialize the complete system
+
+  stop_all_services:
+    name: stop_all_services
+    description: Stop all running services
+    category: service_management
+    module: services.orchestrator
+    function: stop_all_services
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, stop, all, bulk, management]
+
+    parameters:
+      force:
+        type: boolean
+        default: false
+        description: Whether to force kill all services
+
+    use_cases:
+      - I want to stop all services
+      - Shutdown the development environment
+      - Stop all background services
+      - Clean shutdown of the system
+
+  service_logs:
+    name: service_logs
+    description: Get recent log entries for a service
+    category: service_management
+    module: services.orchestrator
+    function: service_logs
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, logs, debugging, monitoring]
+
+    parameters:
+      service_name:
+        type: string
+        required: true
+        description: Name of the service
+      lines:
+        type: integer
+        default: 50
+        description: Number of recent log lines to retrieve
+
+    use_cases:
+      - I want to see service logs
+      - Debug a service issue
+      - Monitor service output
+      - Check service errors
+
+  service_health_check:
+    name: service_health_check
+    description: Perform health checks on all services and return comprehensive status
+    category: service_management
+    module: services.orchestrator
+    function: service_health_check
+    supports_persistent: false
+    requires_review: false
+    keywords: [service, health, check, monitoring, status]
+
+    use_cases:
+      - I want to check all service health
+      - Monitor system status
+      - Get health recommendations
+      - Diagnose service issues
+
+  # Automation & Orchestration (moved from core MCP tools)
+  send_orchestration_command:
+    name: send_orchestration_command
+    description: Send orchestration command to extension via Socket.IO for multi-LLM coordination
+    category: automation
+    module: automation.orchestration
+    function: send_orchestration_command
+    supports_persistent: false
+    requires_review: false
+    keywords: [orchestration, multi-llm, coordination, socketio]
+
+    parameters:
+      command_type:
+        type: string
+        required: true
+        description: Type of command ('code_generation', 'analysis', 'chat')
+      targets:
+        type: array
+        required: true
+        description: List of AI services to target ['chatgpt', 'claude', 'perplexity']
+      prompt:
+        type: string
+        required: true
+        description: The prompt to send to all target AI services
+      options:
+        type: object
+        required: false
+        description: Optional parameters (timeout, priority, etc.)
+
+    use_cases:
+      - I want to coordinate multiple AI services
+      - Send prompts to ChatGPT and Claude simultaneously
+      - Orchestrate multi-LLM workflows
+      - Compare responses from different AI services
+
+  inject_prompt_native:
+    name: inject_prompt_native
+    description: Inject prompt into any web browser AI interface using native keyboard automation
+    category: automation
+    module: automation.native_automation
+    function: inject_prompt_native
+    supports_persistent: false
+    requires_review: false
+    keywords: [automation, browser, native, keyboard, injection]
+
+    parameters:
+      prompt:
+        type: string
+        required: true
+        description: Text prompt to inject
+      browser:
+        type: string
+        default: Chrome
+        description: Browser name to focus ('Chrome', 'Safari', 'Firefox', 'Edge')
+      use_tab_navigation:
+        type: boolean
+        default: true
+        description: Whether to use Tab key to navigate to input field
+      use_clipboard:
+        type: boolean
+        default: true
+        description: If True, use copy/paste instead of typing (much faster)
+      typing_delay:
+        type: number
+        default: 0.05
+        description: Delay between keystrokes in seconds (0 for instant, 0.05 for human-like)
+      delay_between_steps:
+        type: number
+        default: 1.0
+        description: Delay between major automation steps
+
+    use_cases:
+      - I want to automate browser interactions
+      - Inject prompts into AI chat interfaces
+      - Automate form filling
+      - Control web applications with native automation
+
+  focus_and_type_native:
+    name: focus_and_type_native
+    description: Focus an application and type text using native automation
+    category: automation
+    module: automation.native_automation
+    function: focus_and_type_native
+    supports_persistent: false
+    requires_review: false
+    keywords: [automation, native, focus, typing, application]
+
+    parameters:
+      text:
+        type: string
+        required: true
+        description: Text to type
+      app_name:
+        type: string
+        default: Chrome
+        description: Application name to focus
+      typing_delay:
+        type: number
+        default: 0.05
+        description: Delay between keystrokes (0 for instant)
+
+    use_cases:
+      - I want to type text into any application
+      - Automate text input across applications
+      - Control applications with native automation
+      - Focus and interact with desktop apps
+
+  # Firebase Automation (moved from core MCP tools)
+  firebase_setup_new_project:
+    name: firebase_setup_new_project
+    description: Create a complete new Firebase project with full automation
+    category: cloud_services
+    module: firebase.project_management
+    function: firebase_setup_new_project
+    supports_persistent: false
+    requires_review: true # Cloud infrastructure changes need review
+    keywords: [firebase, gcp, project, setup, automation, cloud]
+
+    parameters:
+      project_id:
+        type: string
+        required: true
+        description: Unique project identifier (lowercase, hyphens allowed)
+      project_name:
+        type: string
+        required: true
+        description: Human-readable project name
+      billing_account:
+        type: string
+        required: false
+        description: GCP billing account ID (optional)
+      region:
+        type: string
+        default: us-central1
+        description: GCP region for resources
+
+    validation:
+      dependencies: [firebase, gcloud]
+
+    use_cases:
+      - I want to create a new Firebase project
+      - Set up Firebase infrastructure
+      - Automate Firebase project creation
+      - Initialize Firebase with services
+
+  firebase_configure_existing_project:
+    name: firebase_configure_existing_project
+    description: Configure an existing Firebase project with additional apps and services
+    category: cloud_services
+    module: firebase.project_management
+    function: firebase_configure_existing_project
+    supports_persistent: false
+    requires_review: true
+    keywords: [firebase, configure, apps, services, automation]
+
+    parameters:
+      project_id:
+        type: string
+        required: true
+        description: Existing Firebase project ID
+      google_credentials:
+        type: object
+        required: true
+        description: Google account credentials for console access
+      operations:
+        type: object
+        required: true
+        description: Dictionary of operations to perform
+
+    use_cases:
+      - I want to add apps to my Firebase project
+      - Configure Firebase authentication
+      - Add Firebase services
+      - Set up custom domains
+
+  firebase_project_status:
+    name: firebase_project_status
+    description: Get the current configuration status of a Firebase project
+    category: cloud_services
+    module: firebase.project_management
+    function: firebase_project_status
+    supports_persistent: false
+    requires_review: false
+    keywords: [firebase, status, project, check, configuration]
+
+    parameters:
+      project_id:
+        type: string
+        required: true
+        description: Firebase project ID to check
+
+    use_cases:
+      - I want to check my Firebase project status
+      - Get Firebase project configuration
+      - Check Firebase services
+      - Verify project setup
+
+  firebase_batch_operations:
+    name: firebase_batch_operations
+    description: Perform multiple Firebase operations in sequence with error handling
+    category: cloud_services
+    module: firebase.project_management
+    function: firebase_batch_operations
+    supports_persistent: false
+    requires_review: true
+    keywords: [firebase, batch, operations, automation, sequence]
+
+    parameters:
+      project_id:
+        type: string
+        required: true
+        description: Firebase project ID
+      operations:
+        type: array
+        required: true
+        description: List of operations to perform
+      options:
+        type: object
+        required: false
+        description: Batch execution options
+
+    use_cases:
+      - I want to perform multiple Firebase operations
+      - Automate Firebase configuration
+      - Batch Firebase setup tasks
+      - Execute Firebase operations sequence

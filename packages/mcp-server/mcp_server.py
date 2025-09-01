@@ -4334,3 +4334,257 @@ if __name__ == "__main__":
         print(f"🎯 Starting HTTP transport on {args.host}:{args.port}")
         logger.info(f"Starting Consolidated MCP Server v{SERVER_VERSION} on {args.host}:{args.port}")
         mcp.run(transport="streamable-http", host=args.host, port=args.port)
+
+# ================================
+# NATIVE TOOLS SYSTEM
+# ================================
+
+# Import native tools system
+try:
+    from native_tools import ToolRegistry, ToolValidator, ToolExecutor, FileWatcher
+    
+    # Initialize native tools system
+    tool_registry = ToolRegistry("tools.yaml")
+    tool_validator = ToolValidator()
+    tool_executor = ToolExecutor()
+    
+    # Start file watcher for hot reload
+    file_watcher = FileWatcher("tools.yaml", tool_registry.load_registry)
+    file_watcher.start_watching()
+    
+    logger.info("Native tool system initialized")
+    
+except ImportError as e:
+    logger.warning(f"Native tools system not available: {e}")
+    # Create placeholder objects
+    tool_registry = None
+    tool_validator = None
+    tool_executor = None
+
+@mcp.tool()
+def list_available_tools(category: str = "all", include_status: bool = False) -> Dict[str, Any]:
+    """
+    List all available native tools in the registry.
+    
+    Args:
+        category: Filter by tool category (default: "all")
+        include_status: Include runtime status information
+    
+    Returns:
+        Dictionary with list of available tools and metadata
+    """
+    if not tool_registry:
+        return {
+            "success": False,
+            "error": "Native tools system not available",
+            "available_categories": [],
+            "tools": []
+        }
+    
+    try:
+        tools = tool_registry.list_tools(category, include_status)
+        categories = tool_registry.get_tool_categories()
+        
+        return {
+            "success": True,
+            "category_filter": category,
+            "available_categories": categories,
+            "total_tools": len(tools),
+            "tools": tools
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to list tools: {str(e)}",
+            "available_categories": [],
+            "tools": []
+        }
+
+@mcp.tool()
+def discover_tools_by_intent(intent: str, max_suggestions: int = 3) -> Dict[str, Any]:
+    """
+    AI-powered tool discovery based on user intent.
+    
+    Args:
+        intent: What the user wants to do (e.g., "I want to capture something")
+        max_suggestions: Maximum number of tool suggestions
+    
+    Returns:
+        Dictionary with suggested tools based on intent matching
+    """
+    if not tool_registry:
+        return {
+            "success": False,
+            "error": "Native tools system not available",
+            "intent": intent,
+            "suggestions": []
+        }
+    
+    try:
+        # Search by use case first
+        use_case_matches = tool_registry.search_by_use_case(intent)
+        
+        # Search by keywords as fallback
+        intent_words = intent.lower().split()
+        keyword_matches = tool_registry.search_by_keywords(intent_words)
+        
+        # Combine and deduplicate results
+        all_matches = {}
+        
+        for match in use_case_matches[:max_suggestions]:
+            all_matches[match["name"]] = {
+                "tool_name": match["name"],
+                "description": match["description"],
+                "match_type": "use_case",
+                "confidence": match["confidence"],
+                "reason": f"Matches use case: '{match['matched_use_case']}'"
+            }
+        
+        for match in keyword_matches[:max_suggestions]:
+            if match["name"] not in all_matches:
+                all_matches[match["name"]] = {
+                    "tool_name": match["name"],
+                    "description": match["description"],
+                    "match_type": "keywords",
+                    "confidence": match["match_score"],
+                    "reason": f"Matches keywords: {', '.join(match['keywords'])}"
+                }
+        
+        # Sort by confidence and limit results
+        suggestions = sorted(all_matches.values(), key=lambda x: x["confidence"], reverse=True)[:max_suggestions]
+        
+        return {
+            "success": True,
+            "intent": intent,
+            "total_suggestions": len(suggestions),
+            "suggestions": suggestions
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to discover tools: {str(e)}",
+            "intent": intent,
+            "suggestions": []
+        }
+
+@mcp.tool()
+def execute_native_tool(
+    tool_name: str,
+    parameters: Dict[str, Any] = None,
+    mode: str = "once"
+) -> Dict[str, Any]:
+    """
+    Execute a native tool from the registry.
+    
+    Args:
+        tool_name: Name of the tool to execute
+        parameters: Parameters to pass to the tool
+        mode: Execution mode ("once", "persistent", "background")
+    
+    Returns:
+        Execution result with output and status
+    """
+    if not tool_registry or not tool_executor:
+        return {
+            "success": False,
+            "error": "Native tools system not available",
+            "tool_name": tool_name
+        }
+    
+    if parameters is None:
+        parameters = {}
+    
+    try:
+        # Get tool configuration
+        tool_config = tool_registry.get_tool(tool_name)
+        if not tool_config:
+            available_tools = [tool["name"] for tool in tool_registry.list_tools()]
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' not found in registry",
+                "tool_name": tool_name,
+                "available_tools": available_tools
+            }
+        
+        # Execute the tool
+        result = tool_executor.execute_tool(tool_name, tool_config, parameters, mode)
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to execute tool: {str(e)}",
+            "tool_name": tool_name
+        }
+
+@mcp.tool()
+def validate_registered_tool(tool_name: str, full_test: bool = False) -> Dict[str, Any]:
+    """
+    Validate a registered tool's configuration and dependencies.
+    
+    Args:
+        tool_name: Name of the tool to validate
+        full_test: Whether to run full validation including test commands
+    
+    Returns:
+        Validation result with detailed checks
+    """
+    if not tool_registry or not tool_validator:
+        return {
+            "success": False,
+            "error": "Native tools system not available",
+            "tool_name": tool_name
+        }
+    
+    try:
+        # Get tool configuration
+        tool_config = tool_registry.get_tool(tool_name)
+        if not tool_config:
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' not found in registry",
+                "tool_name": tool_name
+            }
+        
+        # Validate the tool
+        result = tool_validator.validate_tool(tool_name, tool_config, full_test)
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to validate tool: {str(e)}",
+            "tool_name": tool_name
+        }
+
+@mcp.tool()
+def tool_status(tool_name: str = None) -> Dict[str, Any]:
+    """
+    Get status of running native tools.
+    
+    Args:
+        tool_name: Specific tool name, or None for all tools
+    
+    Returns:
+        Status information for tools
+    """
+    if not tool_executor:
+        return {
+            "success": False,
+            "error": "Native tools system not available"
+        }
+    
+    try:
+        status = tool_executor.get_tool_status(tool_name)
+        return {
+            "success": True,
+            **status
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get tool status: {str(e)}"
+        }
