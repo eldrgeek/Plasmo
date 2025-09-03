@@ -47,12 +47,12 @@
 - [x] CC-Alex: Document architecture decisions in team directory
 
 ### Implementation Details:
-- **Package Location**: `/packages/collaboraition/`
+- **Package Location**: `/packages/collaborAItion/`
 - **Main File**: `dashboard.py` (445 lines, single-file FastHTML server)
 - **Data Structure**: JSON files in `/data/` directory
 - **Auto-reload**: Watchdog monitoring `.py` and `.json` files
 - **UI Framework**: FastHTML + Tailwind CSS
-- **Startup Command**: `npm run start-collaboraition`
+- **Startup Command**: `npm run start-collaborAItion`
 
 ### Follow-up Questions:
 - None at this time

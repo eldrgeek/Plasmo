@@ -137,7 +137,7 @@ class ServiceOrchestrator:
             ServiceConfig(
                 name="collaboration_dashboard",
                 description="CollaborAItion Dashboard",
-                command=["python3", "packages/collaboraition/dashboard.py"],
+                command=["python3", "packages/collaborAItion/dashboard.py"],
                 working_dir=str(self.project_root),
                 port=8081,
                 health_check_url="http://localhost:8081/health",

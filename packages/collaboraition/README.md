@@ -14,17 +14,17 @@ Multi-Agent AI Collaboration Platform - Single-file FastHTML dashboard with auto
 
 ```bash
 # From project root
-npm run start-collaboraition
+npm run start-collaborAItion
 
 # Or directly
-cd packages/collaboraition
+cd packages/collaborAItion
 ./start.sh
 ```
 
 ## File Structure
 
 ```
-packages/collaboraition/
+packages/collaborAItion/
 ├── dashboard.py          # Main FastHTML server + UI
 ├── config.json          # Server and project configuration
 ├── requirements.txt     # Python dependencies

@@ -17,7 +17,7 @@
     "start-mcp": "cd packages/mcp-server && ./start_mcp.sh",
     "start-socketio": "cd packages/socketio-server && python socketio_server_python.py",
     "start-dashboard": "cd packages/dashboard-framework && python launch_dashboard.py",
-    "start-collaboraition": "cd packages/collaboraition && ./start.sh",
+    "start-collaborAItion": "cd packages/collaborAItion && ./start.sh",
     "start-all": "python launch_all.py"
   },
   "devDependencies": {
