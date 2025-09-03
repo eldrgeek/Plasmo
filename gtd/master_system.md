@@ -10,18 +10,14 @@
 ## 📥 INBOX - BRAIN DUMP ZONE
 
 ### TODAY'S CAPTURES
-- [ ] Building app for [client from call]
-- [ ] Consolidate 8 scattered services into unified command center
+- [x] Organize GTD system (this document) ✅ COMPLETED
 - [ ] Set up automated morning accountability alerts  
 - [ ] Create focus interrupt system for rabbit holes
-- [ ] Organize GTD system (this document)
 
 ### RECENT CAPTURES (To be processed)
 - [ ] Cold shower habit restart
 - [ ] Martial arts daily 1-hour minimum practice
 - [ ] Morning routine (5:30-7:30 AM) automation
-- [ ] Technical project consolidation vs exploration balance
-- [ ] AI Copilot vs Sidekick naming/branding decision
 - [ ] Browser extension ecosystem maintenance
 - [ ] Chrome Debug Protocol optimization
 - [ ] Multi-LLM orchestration improvements
@@ -31,9 +27,8 @@
 ## 🎯 NEXT ACTIONS - BY CONTEXT
 
 ### @Computer - Technical Work
-- [ ] **SERVICE CONSOLIDATION**: Start unified dashboard for 8 services (30 min)
-- [ ] **SIDEKICK NOTIFICATIONS**: Test AppleScript alert system (15 min)
-- [ ] **CLIENT APP**: Continue development work from today's call
+- [ ] **NBARPA CLIENT**: Continue NBARPA development work from Greg Foster's call
+- [ ] **AI COPILOT CONSOLIDATION**: Review AI Copilot assets document and design unified dashboard (30 min)
 - [ ] **MCP SERVER**: Fix syntax error in mcp_server.py line 711
 - [ ] **CHROME EXTENSION**: Debug Plasmo command not found error
 
@@ -43,9 +38,9 @@
 - [ ] **HABIT TRACKING**: Design cold shower + martial arts logging
 
 ### @Energy_High - Complex Thinking
-- [ ] **ARCHITECTURE REVIEW**: Evaluate current scattered vs unified approach
+- [ ] **TECHNICAL CONVERGENCE PRINCIPLE**: Define guidelines for consolidation vs exploration balance
 - [ ] **GTD WEEKLY REVIEW**: Process all inboxes and update projects
-- [ ] **CLIENT STRATEGY**: Plan development roadmap for app project
+- [ ] **NBARPA STRATEGY**: Plan development roadmap for NBARPA project
 
 ### @Energy_Low - Maintenance
 - [ ] **FILE ORGANIZATION**: Clean up scattered documentation
@@ -68,10 +63,15 @@
 - Focus/rabbit-hole detection
 - Habit tracking integration
 
-### 👥 CLIENT APP DEVELOPMENT  
-**Outcome**: Deliver working application  
-**Status**: In progress, call today
-**Next Action**: @Computer - Continue from call discussion
+### 👥 NBARPA CLIENT PROJECT (Greg Foster)
+**Outcome**: Deliver working NBARPA application  
+**Status**: In progress, peer directory to Plasmo
+**Next Action**: @Computer - Continue development work from Greg's call
+
+### 🤖 AI COPILOT SERVICE CONSOLIDATION
+**Outcome**: Unified command center for 8 scattered services
+**Status**: Planning phase, assets documented in AI Copilot peer directory
+**Next Action**: @Computer - Review assets and design unified dashboard
 
 ### 🎪 INFRASTRUCTURE MAINTENANCE
 **Outcome**: Reliable, organized development environment
@@ -95,6 +95,7 @@
 - Performance optimization for large-scale orchestration
 - Custom domain setup for Firebase projects
 - Enhanced error reporting and debugging tools
+- Sidekick vs AI Copilot naming/branding decision (defer until working product)
 
 ### Personal Development
 - Miracle Morning routine restart

@@ -83,9 +83,7 @@ class ChromeDebugLauncher:
                 return True
                 
         self.print_status("❌ Chrome executable not found!", "error")
-        self.print_status("Tried the following paths:", "error")
-        for exe in executables:
-            self.print_status(f"   • {exe}", "error")
+        self.print_status(f"Tried: {', '.join(executables)}", "error")
         return False
         
     def kill_existing_chrome(self):
@@ -104,8 +102,7 @@ class ChromeDebugLauncher:
     def setup_profile_directory(self):
         """Create Chrome profile directory if it doesn't exist"""
         self.profile_dir.mkdir(exist_ok=True)
-        self.print_status(f"Profile directory: {self.profile_dir}")
-        
+
     def get_chrome_args(self) -> List[str]:
         """Get Chrome launch arguments"""
         return [
@@ -122,39 +119,22 @@ class ChromeDebugLauncher:
         """Launch Chrome with debug configuration"""
         if not self.find_chrome_executable():
             return False
-            
-        self.print_status("🚀 Launching Chrome with Debug Protocol enabled...")
-        self.print_status(f"Debug port: {self.debug_port}")
-        self.print_status(f"Profile directory: {self.profile_dir}")
-        
-        # Clean up existing instances
+
         self.kill_existing_chrome()
-        
-        # Setup profile directory
         self.setup_profile_directory()
-        
-        # Build command
+
         cmd = [self.chrome_path] + self.get_chrome_args()
-        
+
         try:
-            # Launch Chrome in background
             if self.platform == "windows":
                 subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
             else:
                 subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                
-            self.print_status(f"Using Chrome at: {self.chrome_path}")
+
             self.print_status("✅ Chrome launched with debugging enabled!", "success")
             self.print_status(f"🌐 Debug URL: http://localhost:{self.debug_port}")
-            self.print_status("📋 To connect from MCP server, use: connect_to_chrome()")
-            self.print_status("")
-            self.print_status("Chrome will open with a new window. You can now:")
-            self.print_status("1. Navigate to your web application")
-            self.print_status("2. Use the MCP server tools to monitor console logs")
-            self.print_status("3. Debug JavaScript execution")
-            self.print_status("")
-            self.print_status(f"To view Chrome's debug interface, visit: http://localhost:{self.debug_port}")
-            
+            self.print_status("📋 Connect MCP server with: connect_to_chrome()")
+
             return True
             
         except Exception as e:
