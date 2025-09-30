@@ -26,9 +26,14 @@ import time
 import sys
 import os
 import argparse
+import subprocess
+import requests
+import threading
+import concurrent.futures
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 # MCP and web automation imports
 from fastmcp import FastMCP
@@ -52,6 +57,10 @@ chrome_instances = {}
 console_logs = []
 active_pages = {}
 
+# Chrome Debug Protocol state
+active_connections = set()
+connection_lock = threading.Lock()
+
 def make_json_safe(obj):
     """Convert objects to JSON-serializable format"""
     if hasattr(obj, '__dict__'):
@@ -64,6 +73,104 @@ def make_json_safe(obj):
         return obj
     else:
         return str(obj)
+
+# ================================
+# CHROME DEBUG PROTOCOL UTILITIES
+# ================================
+
+@asynccontextmanager
+async def websocket_connection(ws_url: str):
+    """Context manager for safe WebSocket connections."""
+    ws = None
+    try:
+        ws = await websockets.connect(ws_url)
+        active_connections.add(ws)
+        yield ws
+    except Exception as e:
+        print(f"WebSocket connection error: {e}")
+        raise
+    finally:
+        if ws:
+            active_connections.discard(ws)
+            await ws.close()
+
+async def send_chrome_command_async(ws_url: str, command: str, params: Dict = None, timeout: int = 10) -> Dict[str, Any]:
+    """
+    Send command to Chrome Debug Protocol with proper async handling.
+    
+    Args:
+        ws_url: WebSocket URL for the Chrome tab
+        command: Chrome DevTools Protocol command
+        params: Command parameters
+        timeout: Timeout in seconds
+        
+    Returns:
+        Command response or error information
+    """
+    # CRITICAL: Chrome Debug Protocol requires INTEGER request IDs, not strings
+    # String IDs cause error: "Message must have integer 'id' property"
+    request_id = int(time.time() * 1000000) % 1000000  # Generate unique integer ID from timestamp
+    message = {
+        "id": request_id,
+        "method": command,
+        "params": params or {}
+    }
+    
+    try:
+        async with websocket_connection(ws_url) as websocket:
+            # Send command
+            await websocket.send(json.dumps(message))
+            
+            # Wait for response with matching ID
+            start_time = time.time()
+            messages_received = 0
+            
+            while time.time() - start_time < timeout:
+                try:
+                    response_data = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                    messages_received += 1
+                    
+                    try:
+                        response = json.loads(response_data)
+                    except json.JSONDecodeError:
+                        continue
+                    
+                    # Check if this is our command response
+                    if response.get("id") == request_id:
+                        if "error" in response:
+                            return {
+                                "success": False,
+                                "error": response["error"].get("message", "Unknown error"),
+                                "code": response["error"].get("code"),
+                                "messages_received": messages_received
+                            }
+                        
+                        return {
+                            "success": True,
+                            "result": response.get("result"),
+                            "messages_received": messages_received
+                        }
+                    
+                    # If it's an event (no ID), continue listening
+                    if "method" in response:
+                        continue
+                        
+                except asyncio.TimeoutError:
+                    continue
+            
+            return {
+                "success": False,
+                "error": f"Timeout after {timeout} seconds",
+                "messages_received": messages_received,
+                "request_id": request_id
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "request_id": request_id
+        }
 
 # ================================
 # PLAYWRIGHT BROWSER TOOLS
@@ -408,6 +515,303 @@ async def wait_for_element(selector: str, page_id: str = None, timeout: int = 30
         return {"success": False, "error": str(e)}
 
 # ================================
+# CHROME DEBUG PROTOCOL TOOLS
+# ================================
+
+@mcp.tool()
+def connect_to_chrome(port: int = 9222, host: str = "localhost") -> Dict[str, Any]:
+    """
+    Connect to Chrome Debug Protocol with enhanced error handling.
+    
+    Args:
+        port: Chrome debug port
+        host: Chrome debug host
+        
+    Returns:
+        Connection information and available tabs
+    """
+    try:
+        connection_id = f"{host}:{port}"
+        
+        # Test connection
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"Failed to connect to Chrome debug port {port}",
+                "suggestion": "Ensure Chrome is running with --remote-debugging-port=9222"
+            }
+        
+        tabs_data = response.json()
+        
+        # Store connection info
+        with connection_lock:
+            chrome_instances[connection_id] = {
+                "host": host,
+                "port": port,
+                "connected_at": datetime.now().isoformat(),
+                "tabs": len(tabs_data)
+            }
+        
+        print(f"Connected to Chrome at {connection_id} with {len(tabs_data)} tabs")
+        
+        return {
+            "success": True,
+            "connection_id": connection_id,
+            "host": host,
+            "port": port,
+            "tabs_available": len(tabs_data),
+            "tabs": [
+                {
+                    "id": tab.get("id"),
+                    "title": tab.get("title", "")[:100],  # Limit title length
+                    "url": tab.get("url", "")[:200],      # Limit URL length
+                    "type": tab.get("type"),
+                    "webSocketDebuggerUrl": tab.get("webSocketDebuggerUrl")
+                }
+                for tab in tabs_data if tab.get("type") in ["page", "background_page"]
+            ],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except requests.exceptions.ConnectionError:
+        return {
+            "success": False,
+            "error": f"Connection refused to {host}:{port}",
+            "suggestion": "Launch Chrome with: ./launch-chrome-debug.sh or chrome --remote-debugging-port=9222"
+        }
+    except requests.exceptions.Timeout:
+        return {
+            "success": False,
+            "error": f"Timeout connecting to {host}:{port}",
+            "suggestion": "Check if Chrome debug port is responsive"
+        }
+    except Exception as e:
+        print(f"Unexpected error connecting to Chrome: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+def get_chrome_tabs(connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Get available Chrome tabs with enhanced filtering and information.
+    
+    Args:
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        List of available tabs with detailed information
+    """
+    try:
+        if connection_id not in chrome_instances:
+            return {
+                "success": False,
+                "error": "Not connected to Chrome. Use connect_to_chrome first.",
+                "available_connections": list(chrome_instances.keys())
+            }
+        
+        host, port = connection_id.split(":")
+        response = requests.get(f"http://{host}:{port}/json", timeout=5)
+        
+        if response.status_code != 200:
+            return {"success": False, "error": f"Failed to get tabs from {connection_id}"}
+        
+        tabs_data = response.json()
+        
+        # Filter and enhance tab information
+        filtered_tabs = []
+        for tab in tabs_data:
+            if tab.get("type") in ["page", "background_page"] and tab.get("webSocketDebuggerUrl"):
+                tab_info = {
+                    "id": tab.get("id"),
+                    "title": make_json_safe(tab.get("title", "")[:100]),
+                    "url": tab.get("url", "")[:200],
+                    "type": tab.get("type"),
+                    "webSocketDebuggerUrl": tab.get("webSocketDebuggerUrl"),
+                    "favicon": tab.get("faviconUrl", ""),
+                    "description": tab.get("description", "")[:100]
+                }
+                
+                # Add extension-specific information
+                if "extension" in tab.get("url", "").lower():
+                    tab_info["is_extension"] = True
+                    tab_info["extension_type"] = "popup" if "popup" in tab.get("url", "") else "background"
+                
+                filtered_tabs.append(tab_info)
+        
+        return {
+            "success": True,
+            "connection_id": connection_id,
+            "total_tabs": len(tabs_data),
+            "debuggable_tabs": len(filtered_tabs),
+            "tabs": filtered_tabs,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"Error getting Chrome tabs: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+def launch_chrome_debug() -> Dict[str, Any]:
+    """
+    Launch Chrome with debugging enabled and proper configuration.
+    
+    Returns:
+        Launch status and connection information
+    """
+    try:
+        # Use the python launch script
+        script_path = Path("./chrome_debug_launcher.py")
+        
+        if script_path.exists():
+            print("Using existing launch script")
+            result = subprocess.run(
+                ["bash", str(script_path)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode == 0:
+                # Wait a moment for Chrome to start
+                time.sleep(2)
+                
+                # Test connection
+                connection_result = connect_to_chrome()
+                
+                return {
+                    "success": True,
+                    "method": "launch_script",
+                    "script_output": result.stdout,
+                    "connection_test": connection_result,
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                print(f"Launch script failed: {result.stderr}")
+        
+        return {
+            "success": False,
+            "error": "Could not launch Chrome with debugging enabled",
+            "suggestions": [
+                "Install Google Chrome",
+                "Run: ./launch-chrome-debug.sh",
+                "Manual: chrome --remote-debugging-port=9222 --remote-allow-origins=*"
+            ]
+        }
+        
+    except Exception as e:
+        print(f"Error launching Chrome debug: {e}")
+        return {"success": False, "error": str(e)}
+
+@mcp.tool()
+def execute_javascript_fixed(code: str, tab_id: str, connection_id: str = "localhost:9222") -> Dict[str, Any]:
+    """
+    Execute JavaScript in Chrome tab with proper async handling and error reporting.
+    
+    Args:
+        code: JavaScript code to execute
+        tab_id: Chrome tab ID
+        connection_id: Chrome connection identifier
+        
+    Returns:
+        Execution result with comprehensive error handling
+    """
+    def run_async_execution():
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            async def execute():
+                # Get WebSocket URL for the tab
+                host, port = connection_id.split(":")
+                response = requests.get(f"http://{host}:{port}/json", timeout=5)
+                
+                if response.status_code != 200:
+                    return {"success": False, "error": "Failed to get tab information"}
+                
+                tabs = response.json()
+                target_tab = None
+                
+                for tab in tabs:
+                    if tab.get("id") == tab_id:
+                        target_tab = tab
+                        break
+                
+                if not target_tab:
+                    return {"success": False, "error": f"Tab {tab_id} not found"}
+                
+                ws_url = target_tab.get("webSocketDebuggerUrl")
+                if not ws_url:
+                    return {"success": False, "error": f"Tab {tab_id} not debuggable"}
+                
+                # Enable Runtime domain
+                enable_result = await send_chrome_command_async(ws_url, "Runtime.enable")
+                if not enable_result.get("success"):
+                    return {"success": False, "error": "Failed to enable Runtime domain"}
+                
+                # Execute JavaScript
+                exec_result = await send_chrome_command_async(
+                    ws_url,
+                    "Runtime.evaluate",
+                    {
+                        "expression": code,
+                        "returnByValue": True,
+                        "generatePreview": True
+                    }
+                )
+                
+                if not exec_result.get("success"):
+                    return exec_result
+                
+                result = exec_result.get("result", {})
+                
+                # Process execution result
+                if result.get("exceptionDetails"):
+                    exception = result["exceptionDetails"]
+                    return {
+                        "success": False,
+                        "error": "JavaScript execution error",
+                        "exception": make_json_safe(exception),
+                        "line_number": exception.get("lineNumber"),
+                        "column_number": exception.get("columnNumber"),
+                        "timestamp": datetime.now().isoformat()
+                    }
+                
+                execution_result = result.get("result", {})
+                return {
+                    "success": True,
+                    "value": make_json_safe(execution_result.get("value")),
+                    "type": execution_result.get("type"),
+                    "description": execution_result.get("description"),
+                    "code_executed": code,
+                    "tab_id": tab_id,
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            return loop.run_until_complete(execute())
+            
+        except Exception as e:
+            print(f"Error in JavaScript execution: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            loop.close()
+    
+    try:
+        if connection_id not in chrome_instances:
+            return {"success": False, "error": "Not connected to Chrome. Use connect_to_chrome first."}
+        
+        # Run in separate thread to avoid blocking
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_async_execution)
+            return future.result(timeout=30)  # 30 second timeout
+        
+    except concurrent.futures.TimeoutError:
+        return {"success": False, "error": "JavaScript execution timed out"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# ================================
 # FILE OPERATIONS TOOLS
 # ================================
 
@@ -526,6 +930,12 @@ def get_server_info() -> Dict[str, Any]:
         "available_tools": tools_list,
         "playwright_support": True,
         "chrome_debug_support": True,
+        "chrome_debug_tools": [
+            "connect_to_chrome",
+            "get_chrome_tabs", 
+            "launch_chrome_debug",
+            "execute_javascript_fixed"
+        ],
         "status": "ready"
     }
 
@@ -722,6 +1132,12 @@ Tools available: {tools_count}
 - wait_for_element: Wait for elements to appear
 - close_browser: Clean up browser resources
 
+🔧 Chrome Debug Protocol Tools:
+- connect_to_chrome: Connect to Chrome debug port
+- get_chrome_tabs: List available Chrome tabs
+- launch_chrome_debug: Launch Chrome with debugging enabled
+- execute_javascript_fixed: Execute JavaScript with proper async handling
+
 📁 File Operation Tools:
 - read_file: Read file contents
 - write_file: Write file contents
@@ -737,6 +1153,7 @@ Tools available: {tools_count}
 - "Fill the email field with test@example.com"
 - "Execute JavaScript: document.title"
 - "Wait for the loading spinner to disappear"
+- "Connect to Chrome debug port and execute JavaScript"
 
 🎯 Ready for browser automation with natural language commands!
 """)
