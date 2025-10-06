@@ -1,8 +1,28 @@
 # Browser Automation Learning Agent: Architecture & Design
 
+> **📋 Implementation Roadmap**: See [`web_automation_impl_plan.md`](./web_automation_impl_plan.md) for detailed implementation phases, timelines, and task breakdowns.
+
 ## Executive Summary
 
-This project implements an intelligent agent system that learns to carry out browser-based tasks by observing, scripting, and refining automation procedures. Rather than directly executing browser actions through Playwright, the agent writes and tests JavaScript functions that it consolidates into a hierarchical structure of **Actions**, **Steps**, and **Sequences**—creating a maintainable library of reusable automation knowledge.
+This project implements an intelligent agent system that learns to carry out browser-based
+tasks by observing, scripting, and refining automation procedures.
+Rather than directly executing browser actions through Playwright,
+the agent writes and tests JavaScript functions that it consolidates into a
+hierarchical structure of **Actions**, **Steps**, and **Sequences**—creating a maintainable library
+of reusable automation knowledge.
+
+**Three-Tier Hierarchy:**
+
+- **Sequence** (also called a "procedure"): A series of steps executed across different contexts
+- **Step**: A series of actions executed in the same context
+- **Action**: A single browser operation (like clicking a button) preceded by code that waits for preconditions
+
+**Precondition Waiting Requirements:**
+
+- Must not block the main thread
+- Use MutationObserver or Promise-based polling (checking every 100ms)
+- Wait for DOM stability, element visibility, and proper focus states
+- Essential because pages render dynamically and selectors may not be immediately available
 
 ---
 
@@ -19,38 +39,45 @@ ACTION (Atomic operation with preconditions)
 ```
 
 #### **1. Actions**
+
 **Atomic operations** that wait for their requirements to be met before executing.
 
 **Characteristics:**
+
 - Self-contained JavaScript functions
 - Wait for preconditions (correct location, selectors present)
-- Monitor for DOM mutations to settle
+- Monitor for DOM mutations to settle using MutationObserver
 - Include error handling and validation
-- Return structured results
+- Return success, or if failure, return enough information
+  to the LLM for it to diagnose the problem and fix it with a better script
 
 **Example Action:**
+
 ```javascript
 // Action: Click send button in Claude interface
 async function clickSendButton() {
   // Wait for correct location
-  if (!window.location.href.includes('claude.ai')) {
-    throw new Error('Wrong domain');
+  if (!window.location.href.includes("claude.ai")) {
+    throw new Error("Wrong domain");
   }
-  
-  // Wait for selector
+
+  // Wait for selector with non-blocking guard
   const selector = 'button[aria-label="Send message"]';
-  await waitForSelector(selector, 5000);
-  
+  await waitForElement(selector, 5000);
+
   // Wait for DOM to settle
   await waitForDOMMutationsToSettle(100);
-  
+
   // Execute action
   const button = document.querySelector(selector);
   button.click();
-  
+
   return { success: true, timestamp: Date.now() };
 }
 ```
+
+````
+
 
 #### **2. Steps**
 **Series of actions** performed in the same context.
@@ -60,28 +87,8 @@ async function clickSendButton() {
 - All actions share the same browser context (same page/iframe)
 - No navigation or context changes
 - Can include verification between actions
+- Can include guards to wait for the preconditions to be met.
 
-**Example Step:**
-```javascript
-// Step: Submit prompt to Claude
-async function submitPromptToClaude(promptText) {
-  const results = [];
-  
-  // Action 1: Find and focus input
-  results.push(await focusClaudeInput());
-  
-  // Action 2: Type the prompt
-  results.push(await typeIntoClaudeInput(promptText));
-  
-  // Action 3: Click send button
-  results.push(await clickSendButton());
-  
-  // Action 4: Wait for response to start
-  results.push(await waitForResponseStart());
-  
-  return { step: 'submitPromptToClaude', results };
-}
-```
 
 #### **3. Sequences**
 **Series of steps** performed across different contexts.
@@ -102,13 +109,13 @@ async function submitPromptToClaude(promptText) {
     tab: 'same'
   },
   {
-    context: 'claude.ai', 
+    context: 'claude.ai',
     step: 'submitPromptToClaude',
     tab: 'same'
   },
   {
     context: 'claude.ai',
-    step: 'waitForAndCopyResponse', 
+    step: 'waitForAndCopyResponse',
     tab: 'same'
   },
   {
@@ -117,9 +124,20 @@ async function submitPromptToClaude(promptText) {
     tab: 'same'
   }
 ]
-```
+````
 
 ---
+
+## Alignment with Web Automation Implementation Plan
+
+This document is harmonized with docs/web_automation_impl_plan.md. Conflicts are resolved in favor of the plan:
+
+- Playwright is used for discovery only; all interactions are executed via JavaScript through `orchestrate_sequences` and `execute_javascript`.
+- Procedure storage is JSON-based under `~/procedures/` with a global `metadata.json` index.
+- Non-blocking guard patterns (e.g., MutationObserver) are required for waits.
+- Composability: procedures can call other procedures with dependency resolution.
+
+Open items requiring confirmation are annotated with <resolve> tags.
 
 ## Context Management
 
@@ -135,13 +153,18 @@ A **context change** occurs when:
 ### Current Implementation: `orchestrate_sequences`
 
 The Plasmo MCP server's `orchestrate_sequences` tool currently:
+
 - Takes a series of sequences with their contexts
 - Executes them in order
+
+#### Currently
+
 - Assumes the **tab stays constant**
 - Allows the **domain to change**
 - Waits for domain pattern match before executing each sequence
 
 **Current Limitations:**
+
 - No iframe handling
 - No multi-tab coordination
 - No OS-level context switching
@@ -154,97 +177,90 @@ The Plasmo MCP server's `orchestrate_sequences` tool currently:
 ### Phase 1: Discovery & Observation
 
 The agent uses **Playwright MCP server** to:
+
 1. Take page snapshots (accessibility tree, DOM structure)
-2. Identify interactive elements
-3. Observe DOM mutations during interactions
+2. Identify interactive elements and candidate selectors
+3. Observe DOM mutations during interactions (observation only)
 4. Monitor network activity
 5. Capture console messages
 
-**Tools Used:**
+**Tools Used (discovery only, no actions):**
+
 - `browser_snapshot` - Get page structure
-- `browser_evaluate` - Execute exploratory JavaScript
-- `browser_click` / `browser_type` - Test interactions
+- `browser_evaluate` - Execute exploratory probes (read-only)
 - DOM Observer patterns for monitoring changes
+
+> Per plan: Do not use `browser_click` / `browser_type` for actions. All interactions are executed via injected JavaScript, orchestrated by `orchestrate_sequences`.
 
 ### Phase 2: Script Generation
 
-The agent **writes JavaScript functions** rather than using Playwright commands directly:
+The agent (LLM) **writes JavaScript functions** that will be executed via Chrome Debug Protocol (CDP) using `execute_javascript`/`orchestrate_sequences`.
 
-**Why JavaScript instead of Playwright?**
-- **Reusability** - Functions can be stored and reused
+**Why JavaScript (CDP) instead of Playwright for actions?**
+
+- **Reusability** - Functions can be stored in JSON procedures and reused
 - **Composability** - Small functions combine into larger workflows
-- **Testing** - Can be tested independently
+- **Testing** - Can be tested independently via `orchestrate_sequences`
 - **Performance** - Executes directly in browser context
 - **Debugging** - Easier to inspect and modify
+- **Plan Compliance** - Matches the plan’s “Playwright discovery only” rule
 
 ### Phase 3: Testing & Validation
 
 The agent:
-1. Executes generated JavaScript in browser
-2. Observes results through DOM changes
-3. Validates success criteria
-4. Captures errors and exceptions
-5. Iterates on failures
 
-**Testing Strategies:**
-- **Interactive testing** via Agent Bridge (human guidance)
-- **Automated validation** for known patterns
+1. Generates JavaScript functions
+2. Captures errors and exceptions
+3. Iterates on failures
+
+**Learning Strategies:**
+
+- **Knowledge based inference** Based on general knowledge of
+  how applications work, the model can infer what the next step should be.
+- **Trial and error** - The model can try different actions and see what works.
+- **Collaborative learning** with (human guidance)
 - **Paranoid mode** with verification at each step
 
 ### Phase 4: Consolidation
 
-Successful JavaScript functions are consolidated into:
+Successful JavaScript functions are consolidated into JSON procedure files under `~/procedures/web/{domain}/{category}/{action}.json` with metadata and execution stats. See the plan’s “Procedure File Schema”.
 
-1. **Action Library** - Individual tested operations
-2. **Step Procedures** - Common multi-action workflows  
-3. **Sequence Templates** - Complete automation workflows
+Examples (conceptual):
 
-**Storage Format:**
-```python
-"""
-Action: Click Send Button in Claude Interface
+- `~/procedures/web/github.com/auth/login.json`
+- `~/procedures/web/github.com/auth/ensure_logged_in.json`
+- `~/procedures/web/github.com/repos/create_repo.json`
 
-Requirements:
-- Domain: claude.ai
-- Selector: button[aria-label="Send message"]
-- DOM: Must be stable (no mutations for 100ms)
+Each platform/domain maintains procedures that can compose into workflows stored under `~/procedures/workflows/`.
 
-Returns:
-- success: bool
-- timestamp: float
-- error: Optional[str]
+Sequence templates are periodically examined to find common patterns and heuristics.
 
-Confidence: HIGH (validated 2025-09-30)
-Last Tested: 2025-09-30
-Success Rate: 95%
-"""
-
-async function clickClaudeSendButton():
-    # JavaScript code here
-```
-
----
+**Storage Format:** JSON per plan (not ad-hoc JS objects).
 
 ## Tool Integration
 
-### Playwright MCP Server
+### Playwright MCP Server (Discovery Only)
 
-**Primary use:** Page inspection and interaction testing
+Aligned with the Web Automation Implementation Plan, Playwright is used strictly for discovery/inspection and NOT for taking actions.
 
-**Key Tools:**
-- `browser_snapshot` - Get page accessibility tree
-- `browser_click` - Test clicking elements  
-- `browser_type` - Test text input
-- `browser_evaluate` - Execute JavaScript
-- `browser_navigate` - Change pages
-- `browser_wait_for` - Wait for conditions
+**Primary use:** Page inspection and exploration
+
+**Key Tools (read-only usage):**
+
+- `browser_snapshot` - Get page accessibility tree / structure
+- `browser_evaluate` - Evaluate small probes to understand DOM shape
+- `browser_wait_for` - Observe appearance of elements or text during discovery
+- `browser_navigate` - Optional for moving to pages during discovery only
+
+> All clicks, typing, and interaction side-effects must NOT use Playwright.
 
 ### Plasmo MCP Server
 
-**Primary use:** File operations, Chrome debug, agent coordination
+**Primary use:** Chrome Debug JavaScript execution, file operations, agent coordination
 
 **Key Tools:**
-- `orchestrate_sequences` - Execute multi-step workflows
+
+- `orchestrate_sequences` - Execute multi-step workflows via injected JavaScript
 - `execute_javascript` - Run JS via Chrome Debug Protocol
 - `smart_write_file` - Save learned procedures
 - `smart_read_file` - Load existing procedures
@@ -255,16 +271,20 @@ async function clickClaudeSendButton():
 **Primary use:** OS-level mouse and keyboard control
 
 **Key Tools:**
+
 - `click_mouse` - Click at coordinates
 - `type_text` - Type text via keyboard
 - `press_key` - Press key combinations
 - `take_screenshot` - Capture screen regions
+
+**OS-level actions (DT-Server/osascript) are deferred until Phase 4+** to focus on browser-only workflows first. Current plan prioritizes browser JavaScript execution via Chrome Debug Protocol.
 
 ### OSAscript (macOS Automation)
 
 **Primary use:** Application control and system integration
 
 **Key Tools:**
+
 - Focus applications
 - Switch desktop spaces
 - Execute AppleScript commands
@@ -274,75 +294,59 @@ async function clickClaudeSendButton():
 
 ## Knowledge Storage Architecture
 
-### Directory Structure
+### Directory Structure (JSON-based, per web_automation_impl_plan)
 
 ```
-procedures/
-  general/
-    clipboard_operations.py
-    dom_waiting.py
-    selector_helpers.py
-  
-  browser/
-    claude_ai/
-      submit_prompt.py
-      wait_for_response.py
-      copy_response.py
-    discord/
-      copy_message.py
-      paste_message.py
-      monitor_channel.py
-    chatgpt/
-      submit_prompt.py
-      copy_response.py
-  
-  desktop/
-    yabai_operations.py
-    window_management.py
+~/procedures/
+├── metadata.json                    # Global procedure index with search metadata
+├── web/
+│   ├── {domain}/
+│   │   ├── auth/
+│   │   │   ├── login.json
+│   │   │   ├── logout.json
+│   │   │   ├── ensure_logged_in.json
+│   │   │   └── check_login_status.json
+│   │   ├── {feature_area}/
+│   │   │   └── {action}.json
+│   │   └── ...
+├── workflows/                       # Future: composed multi-procedure workflows
+│   └── {workflow_name}.json
+└── templates/
+    ├── procedure_template.json
+    └── workflow_template.json
 ```
 
-### Procedure Metadata Format
+**Storage Format:** All procedures stored as JSON files following the schema defined in web_automation_impl_plan.md. No Python-based procedures.
 
-Each procedure file includes:
+### Procedure File Schema (authoritative)
 
-```python
-"""
-Procedure: Submit Prompt to Claude
+Procedures are stored as JSON and follow the schema defined in the Web Automation Implementation Plan (see "Procedure File Schema"). Example snippet:
 
-Type: STEP
-Context: claude.ai
-Dependencies: 
-  - focusClaudeInput (action)
-  - typeIntoInput (action)
-  - clickSendButton (action)
-
-Preconditions:
-  - Browser tab open to claude.ai/*
-  - Input field visible and enabled
-  - No pending operations
-
-Input:
-  - prompt_text: str
-
-Output:
-  - success: bool
-  - message_id: Optional[str]
-  - error: Optional[str]
-
-Confidence: HIGH
-Success Rate: 95% (over 100 executions)
-Last Validated: 2025-09-30
-Known Issues: None
-
-Version: 2.1.0
-Change Log:
-  - 2.1.0: Added retry logic for button visibility
-  - 2.0.0: Switched to aria-label selector (more stable)
-  - 1.0.0: Initial implementation
-"""
-
-# JavaScript or Python code follows
+```json
+{
+  "name": "github_login",
+  "domain": "github.com",
+  "description": "Log into GitHub account using OAuth or password manager",
+  "version": "1.0.0",
+  "tags": ["auth", "github"],
+  "dependencies": [],
+  "sequences": [
+    {
+      "type": "execute",
+      "domain_pattern": "github\\.com",
+      "description": "Navigate to login page",
+      "javascript": "document.querySelector('a[href=\\"/login\\"]').click()",
+      "wait_for_element": "input[name='login']",
+      "wait_timeout": 10000
+    }
+  ],
+  "execution_stats": { "success_rate": 0.93 },
+  "timing_profile": {},
+  "recovery": {}
+}
 ```
+
+**Migration Strategy:** All existing Python-based procedure files should be migrated to JSON format. Non-web desktop procedures will be stored outside ~/procedures/web/ in a separate ~/procedures/desktop/ directory with their own metadata integration.
 
 ---
 
@@ -353,54 +357,61 @@ Change Log:
 **When:** Exploring unknown interfaces or uncertain procedures
 
 **Process:**
-1. Agent executes one action
-2. Observes result via DOM changes  
+
+1. Agent executes one action (via JavaScript injected with `execute_javascript`)
+2. Observes result via DOM changes
 3. Reports status via Agent Bridge
 4. Waits for human confirmation if uncertain
 5. Decides next action based on observations
 6. Repeats until task complete
 
 **Characteristics:**
+
 - Token-heavy (many LLM calls)
 - Time-consuming
 - Highly adaptable
 - Good for debugging
 - Human oversight available
 
-### 2. Scripted Mode (Playwright Python)
+### 2. Orchestrated Mode (Preferred)
 
-**When:** Confident about approach or procedure is proven
+Aligned with the Web Automation Implementation Plan, actions are executed via JavaScript (Chrome Debug Protocol) orchestrated by `orchestrate_sequences`. Playwright is NOT used for actions.
 
 **Process:**
-1. Agent writes complete Python script upfront
-2. Includes try/catch blocks and fallbacks
-3. Executes entire procedure
-4. Reports results
+
+1. Load procedure JSON from ~/procedures
+2. Execute sequences using `orchestrate_sequences` (JS only)
+3. Capture diagnostics and timing for learning
+4. Persist updates to procedure on success/heal
 
 **Characteristics:**
+
 - Token-efficient
-- Fast execution
-- Less adaptable
-- Harder to debug failures
-- Good for stable, known procedures
+- Fast execution in browser context
+- Supports self-healing and timing profile updates
+- Preferred for all stable workflows
 
 ### 3. Paranoid Mode (Verified Execution)
 
 **When:** Critical operations or untrusted environments
 
 **Process:**
-1. Execute action
-2. Verify result explicitly
+
+1. Execute action (JS)
+2. Verify result explicitly (non-blocking guards)
 3. Check for error indicators
 4. Confirm with human if issues detected
 5. Proceed only on verification
 
 **Characteristics:**
+
 - Balanced token usage
 - Moderate speed
 - High reliability
 - Good error detection
 - Safety-first approach
+
+**Navigation Strategy:** All actions including navigation must be done via JavaScript/CDP to maintain a single execution model. Playwright is strictly for discovery and exploration only.
 
 ---
 
@@ -413,11 +424,13 @@ Provides real-time communication between agent and human operator during automat
 ### Capabilities
 
 **Status Updates:**
+
 ```javascript
 agentBridge.status("Finding Claude send button...", "info");
 ```
 
 **Questions/Confirmations:**
+
 ```javascript
 const response = await agentBridge.ask(
   "Found two possible send buttons. Should I use the one with aria-label?",
@@ -426,11 +439,13 @@ const response = await agentBridge.ask(
 ```
 
 **Progress Tracking:**
+
 ```javascript
 agentBridge.progress(45, "Tested 9 of 20 buttons");
 ```
 
 **Interactive Testing:**
+
 ```javascript
 await agentBridge.sendInteractiveStep(
   "Hover over the send button for 3 seconds",
@@ -441,6 +456,7 @@ const result = await agentBridge.waitForResponse("test-001");
 ```
 
 **Stop Button:**
+
 - Always-visible "Stop" button during operations
 - Allows human to interrupt if agent is on wrong track
 - Agent checkpoint at logical boundaries
@@ -464,13 +480,13 @@ async function waitForDOMMutationsToSettle(quietPeriodMs = 100) {
         resolve();
       }, quietPeriodMs);
     });
-    
+
     observer.observe(document.body, {
       childList: true,
       subtree: true,
-      attributes: true
+      attributes: true,
     });
-    
+
     // Start initial timeout
     timeoutId = setTimeout(() => {
       observer.disconnect();
@@ -488,32 +504,32 @@ Buttons often change state during interactions:
 const buttonObserver = {
   changes: [],
   startTime: Date.now(),
-  
+
   observe(buttonSelector) {
     const button = document.querySelector(buttonSelector);
-    
+
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes') {
+        if (mutation.type === "attributes") {
           this.changes.push({
-            type: 'attribute_change',
+            type: "attribute_change",
             attribute: mutation.attributeName,
             oldValue: mutation.oldValue,
             newValue: button.getAttribute(mutation.attributeName),
-            timestamp: Date.now() - this.startTime
+            timestamp: Date.now() - this.startTime,
           });
         }
       });
     });
-    
+
     observer.observe(button, {
       attributes: true,
       attributeOldValue: true,
-      attributeFilter: ['disabled', 'aria-busy', 'class']
+      attributeFilter: ["disabled", "aria-busy", "class"],
     });
-    
+
     return observer;
-  }
+  },
 };
 ```
 
@@ -524,13 +540,13 @@ Detecting when LLM responses complete:
 ```javascript
 async function waitForResponseComplete(responseSelector, timeoutMs = 30000) {
   const startTime = Date.now();
-  let lastContent = '';
+  let lastContent = "";
   let stableCount = 0;
-  
+
   while (Date.now() - startTime < timeoutMs) {
     const element = document.querySelector(responseSelector);
-    const currentContent = element?.textContent || '';
-    
+    const currentContent = element?.textContent || "";
+
     if (currentContent === lastContent) {
       stableCount++;
       if (stableCount >= 3) {
@@ -541,11 +557,11 @@ async function waitForResponseComplete(responseSelector, timeoutMs = 30000) {
       stableCount = 0;
       lastContent = currentContent;
     }
-    
-    await new Promise(resolve => setTimeout(resolve, 500));
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  
-  return { complete: false, content: lastContent, error: 'timeout' };
+
+  return { complete: false, content: lastContent, error: "timeout" };
 }
 ```
 
@@ -564,6 +580,7 @@ async function waitForResponseComplete(responseSelector, timeoutMs = 30000) {
 ### Recovery Strategies
 
 **1. Retry with Backoff**
+
 ```python
 async def retry_action(action_func, max_attempts=3):
     for attempt in range(max_attempts):
@@ -577,38 +594,42 @@ async def retry_action(action_func, max_attempts=3):
 ```
 
 **2. Fallback Selectors**
+
 ```javascript
 async function findElementWithFallbacks(selectors) {
   for (const selector of selectors) {
     const element = document.querySelector(selector);
     if (element) {
-      return { element, selector, confidence: 'high' };
+      return { element, selector, confidence: "high" };
     }
   }
-  
+
   // Try fuzzy matching
   const fuzzyMatch = await fuzzyFindElement(selectors[0]);
   if (fuzzyMatch) {
-    return { element: fuzzyMatch, selector: 'fuzzy', confidence: 'low' };
+    return { element: fuzzyMatch, selector: "fuzzy", confidence: "low" };
   }
-  
-  throw new Error('Element not found with any selector');
+
+  throw new Error("Element not found with any selector");
 }
 ```
 
 **3. Self-Correction**
+
 - Procedure tracks success/failure rate
 - Auto-triggers re-learning when success rate drops below threshold
 - Updates selector strategies based on failures
 
 **4. Human Escalation**
+
 ```javascript
 if (confidence < THRESHOLD) {
-  const guidance = await agentBridge.ask(
-    "Procedure failing. Need guidance.",
-    ["Retry with debugging", "Mark procedure as broken", "Help me fix it"]
-  );
-  
+  const guidance = await agentBridge.ask("Procedure failing. Need guidance.", [
+    "Retry with debugging",
+    "Mark procedure as broken",
+    "Help me fix it",
+  ]);
+
   if (guidance === "Help me fix it") {
     await enterInteractiveLearningMode();
   }
@@ -624,23 +645,25 @@ if (confidence < THRESHOLD) {
 Before executing procedures, verify preconditions:
 
 **Browser Context:**
+
 ```javascript
 function checkBrowserPreconditions(required) {
   const checks = {
     domain: window.location.hostname === required.domain,
     path: window.location.pathname.match(required.pathPattern),
     logged_in: document.querySelector('[data-logged-in="true"]') !== null,
-    selector_present: document.querySelector(required.selector) !== null
+    selector_present: document.querySelector(required.selector) !== null,
   };
-  
+
   return {
-    satisfied: Object.values(checks).every(v => v),
-    checks
+    satisfied: Object.values(checks).every((v) => v),
+    checks,
   };
 }
 ```
 
 **Desktop Context (via yabai):**
+
 ```python
 def check_desktop_preconditions(required):
     checks = {
@@ -648,7 +671,7 @@ def check_desktop_preconditions(required):
         'app_open': find_application(required['app']) is not None,
         'window_visible': is_window_visible(required['window'])
     }
-    
+
     return {
         'satisfied': all(checks.values()),
         'checks': checks
@@ -662,34 +685,34 @@ If preconditions not met, agent can optionally set up environment:
 ```python
 async def ensure_preconditions(procedure):
     pre = procedure.preconditions
-    
+
     # Check current state
     state = check_all_preconditions(pre)
-    
+
     if state['satisfied']:
         return True
-    
+
     # Attempt auto-setup
     if pre.auto_setup_allowed:
         if not state['checks']['desktop']:
             switch_desktop(pre.required_desktop)
-        
+
         if not state['checks']['app_open']:
             launch_application(pre.required_app)
-        
+
         # Re-check
         state = check_all_preconditions(pre)
-    
+
     if not state['satisfied']:
         # Ask human
         response = await agent_bridge.ask(
             f"Preconditions not met: {state['checks']}",
             ["Setup automatically", "Skip this procedure", "Manual setup"]
         )
-        
+
         if response == "Setup automatically":
             await manual_setup_preconditions(pre)
-    
+
     return state['satisfied']
 ```
 
@@ -700,6 +723,7 @@ async def ensure_preconditions(procedure):
 ### 1. Multi-Tab Coordination
 
 Extend `orchestrate_sequences` to handle:
+
 - Opening new tabs
 - Switching between tabs
 - Coordinating actions across tabs
@@ -766,6 +790,7 @@ Seamless integration of browser and OS actions:
 ### 4. Pattern Library
 
 Build library of common UI patterns:
+
 - Message input fields (contenteditable, textarea)
 - Send buttons (icons, aria-labels, positions)
 - Response streaming (DOM mutation patterns)
@@ -777,6 +802,7 @@ Agent learns patterns once, applies across applications.
 ### 5. Temporal Pattern Learning
 
 Capture timing information:
+
 - How fast do responses stream?
 - How long do loading states last?
 - When do buttons become enabled?
@@ -792,6 +818,7 @@ Use timing patterns to optimize waiting strategies.
 1. **Context transitions**: Should `orchestrate_sequences` be extended to handle iframes and new tabs, or should that be a separate tool?
 
 2. **Error recovery**: When a sequence fails mid-execution, should it:
+
    - Retry the failed step?
    - Restart the entire sequence?
    - Ask human for guidance?
@@ -802,6 +829,7 @@ Use timing patterns to optimize waiting strategies.
 ### Learning Process
 
 4. **Confidence thresholds**: What success rate qualifies a procedure as:
+
    - HIGH confidence (always use)
    - MEDIUM confidence (use with verification)
    - LOW confidence (re-learn)
@@ -823,6 +851,7 @@ Use timing patterns to optimize waiting strategies.
 10. **Procedure granularity**: What's the right level of granularity for stored procedures? Should "click button" be separate from "click send button in Claude"?
 
 11. **Search vs organization**: Should procedures be found by:
+
     - Directory structure (claude_ai/submit_prompt.py)?
     - Semantic search (vector embeddings)?
     - Both?
@@ -842,24 +871,28 @@ Use timing patterns to optimize waiting strategies.
 ## Implementation Priorities
 
 ### Phase 1: Core Infrastructure
+
 - ✅ Basic action execution via JavaScript
-- ✅ Current `orchestrate_sequences` implementation  
+- ✅ Current `orchestrate_sequences` implementation
 - ⏳ Enhanced DOM observation patterns
 - ⏳ Agent Bridge for human coordination
 
 ### Phase 2: Learning System
+
 - ⏳ Interactive learning mode
 - ⏳ Procedure generation from observations
 - ⏳ Testing and validation framework
 - ⏳ Knowledge storage system
 
 ### Phase 3: Advanced Features
+
 - ⏳ Multi-tab coordination
 - ⏳ Iframe handling
 - ⏳ Cross-platform actions (browser + OS)
 - ⏳ Pattern library and reuse
 
 ### Phase 4: Intelligence
+
 - ⏳ Self-correction and auto-relearning
 - ⏳ Confidence-based execution modes
 - ⏳ Temporal pattern recognition
@@ -870,24 +903,78 @@ Use timing patterns to optimize waiting strategies.
 ## Success Metrics
 
 **Learning Effectiveness:**
+
 - Time to learn new procedure (from exploration to stable)
 - Success rate of learned procedures
 - Number of procedures that remain stable over time
 
 **Execution Reliability:**
+
 - Procedure success rate across different environments
 - Error recovery success rate
 - Time to detect and adapt to interface changes
 
 **Knowledge Quality:**
+
 - Procedure reusability across similar contexts
 - False positive rate (procedures that seem to work but don't)
 - Human intervention frequency
 
 **Developer Experience:**
+
 - Time saved vs manual scripting
 - Confidence in agent's decisions
 - Ease of debugging failed procedures
+
+## Next Steps & Implementation
+
+### **Ready for Implementation**
+
+This architecture is ready for implementation following the phases outlined in [`web_automation_impl_plan.md`](./web_automation_impl_plan.md):
+
+1. **Phase 1**: Bootstrap Infrastructure (1 hour)
+
+   - Create `~/procedures/` directory structure
+   - Implement JSON-based procedure templates
+   - Set up metadata indexing system
+
+2. **Phase 2**: First Learning Session (2-3 hours)
+
+   - Learn GitHub login/logout procedures
+   - Demonstrate three-tier hierarchy in practice
+   - Validate non-blocking guard patterns
+
+3. **Phase 3**: Composability Implementation (3-4 hours)
+
+   - Enable procedure-to-procedure calls
+   - Implement dependency resolution
+   - Create helper procedures (e.g., `ensure_logged_in`)
+
+4. **Phase 4**: Failure Recovery System (4-5 hours)
+
+   - Implement self-healing mechanisms
+   - Add diagnostic information collection
+   - Create automated recovery workflows
+
+5. **Phase 5**: Non-Blocking Guard Patterns (2-3 hours)
+
+   - Ensure all waits use MutationObserver
+   - Implement timing profile learning
+   - Add timeout recommendations
+
+6. **Phase 6**: Metadata and Search System (2-3 hours)
+   - Build procedure discovery system
+   - Implement fuzzy search capabilities
+   - Create dependency graph management
+
+### **Key Success Metrics**
+
+- **Learning Effectiveness**: Time to learn new procedures, success rates
+- **Execution Reliability**: Procedure stability across environments
+- **Knowledge Quality**: Reusability and false positive rates
+- **Developer Experience**: Time saved vs manual scripting
+
+> **📋 Detailed Metrics**: See [Success Metrics](./web_automation_impl_plan.md#success-metrics) in the implementation plan for comprehensive measurement criteria.
 
 ---
 
