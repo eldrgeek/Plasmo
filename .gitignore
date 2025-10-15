@@ -190,6 +190,10 @@ temp/
 *.sqlite
 *.sqlite3
 
+# Beads issue tracker
+# .beads/*.db is already ignored by *.db above
+# .beads/issues.jsonl should be tracked (committed to git)
+
 # MCP Server files (uncomment if you don't want to track them)
 # mcp_server.py
 # requirements.txt

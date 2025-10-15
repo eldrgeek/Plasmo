@@ -12,9 +12,10 @@ import platform
 import subprocess
 import signal
 import time
-import click
 from pathlib import Path
 from typing import List, Optional
+from argparse import ArgumentParser
+
 try:
     from colorama import Fore, Style, init
     init()
@@ -141,15 +142,18 @@ class ChromeDebugLauncher:
             self.print_status(f"❌ Failed to launch Chrome: {e}", "error")
             return False
 
-@click.command()
-@click.option('--port', default=9222, help='Debug port (default: 9222)')
-@click.option('--profile-dir', default='chrome-debug-profile', help='Chrome profile directory')
-def main(port: int, profile_dir: str):
+def main():
     """Launch Chrome with debugging enabled for MCP server integration"""
+    parser = ArgumentParser(description="Launch Chrome with debugging enabled")
+    parser.add_argument('--port', type=int, default=9222, help='Debug port (default: 9222)')
+    parser.add_argument('--profile-dir', default='chrome-debug-profile', help='Chrome profile directory')
+
+    args = parser.parse_args()
+
     launcher = ChromeDebugLauncher()
-    launcher.debug_port = port
-    launcher.profile_dir = Path.cwd() / profile_dir
-    
+    launcher.debug_port = args.port
+    launcher.profile_dir = Path.cwd() / args.profile_dir
+
     success = launcher.launch_chrome()
     sys.exit(0 if success else 1)
 

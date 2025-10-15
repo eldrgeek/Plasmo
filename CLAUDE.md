@@ -32,6 +32,47 @@ This project includes a sophisticated multi-agent AI framework for coordinating 
 2. **Chrome Debug Protocol**: Use INTEGER request IDs only (`int(time.time() * 1000000) % 1000000`)
 3. **JSON Serialization**: Always use `make_json_safe()` for Chrome Debug responses
 
+## 📋 Issue Tracking with Beads
+
+**This project uses Beads for issue tracking - NOT markdown TODO lists or plans.**
+
+Beads is a Git-based issue tracker designed specifically for AI coding agents. Use `bd` commands instead of creating markdown plans or TODO files.
+
+**Quick Start:**
+```bash
+bd quickstart           # Interactive guide
+bd ready --json         # Find work with no blockers
+bd create "Task" -p 1   # Create new issue (Priority 0-4, 0=highest)
+bd list --json          # List all issues
+bd show plasmo-1        # Show issue details
+bd update plasmo-1 --status in_progress
+bd close plasmo-1 --reason "Completed"
+```
+
+**Dependency Management:**
+```bash
+# Add blocker (plasmo-2 blocked by plasmo-1)
+bd dep add plasmo-2 plasmo-1 --type blocks
+
+# Link discovered work back to parent
+bd create "Bug found" -t bug -p 0 --deps discovered-from:plasmo-5
+
+# Show dependency tree
+bd dep tree plasmo-2
+```
+
+**Agent Workflow:**
+1. **Find work**: `bd ready --json | jq '.[0]'` - Get first ready issue
+2. **Claim it**: `bd update <id> --status in_progress`
+3. **Discover new work**: `bd create "Found bug" -t bug --deps discovered-from:<parent-id>`
+4. **Complete**: `bd close <id> --reason "Description"`
+
+**Issue Types**: `bug`, `feature`, `task`, `epic`, `chore`
+**Statuses**: `open`, `in_progress`, `blocked`, `closed`
+**Dependency Types**: `blocks`, `related`, `parent-child`, `discovered-from`
+
+The `.beads/issues.jsonl` file is tracked in git for collaboration. The `.beads/plasmo.db` SQLite database is gitignored and auto-syncs.
+
 ## 🔓 Non-Destructive Tool Permissions
 
 All non-destructive operations are pre-approved and can run without permission:
@@ -79,6 +120,13 @@ All non-destructive operations are pre-approved and can run without permission:
 ### Claude Code Integration
 - `TodoWrite` for task management
 - All task planning and coordination tools
+
+### Beads Issue Tracker
+- `Bash(bd:*)` - All bd commands (list, create, show, update, close, ready, dep, etc.)
+- `Bash(bd list:*)`, `Bash(bd show:*)`, `Bash(bd ready:*)` (read operations)
+- `Bash(bd create:*)`, `Bash(bd update:*)`, `Bash(bd close:*)` (write operations)
+- `Bash(bd dep:*)` (dependency management)
+- All bd commands support `--json` flag for programmatic use
 
 ## MCP Server Configuration
 
